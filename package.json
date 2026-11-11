@@ -1,0 +1,17 @@
+{
+  "name": "call-cue",
+  "version": "0.1.0",
+  "description": "Live answer cards for calls: hears the question, shows the approved answer from your knowledge base, translates captions on-device.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "bin": { "call-cue": "server.mjs" },
+  "scripts": {
+    "start": "node server.mjs",
+    "demo": "node server.mjs --mock-ai --open-demo",
+    "test": "node --test test/*.test.mjs"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^1.0.0"
+  }
+}

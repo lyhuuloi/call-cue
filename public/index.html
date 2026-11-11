@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>call-cue</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div class="wrap">
+  <h1 id="kbTitle">call-cue</h1>
+  <p class="sub"><span id="kbSub"></span> · <span class="kbd">/</span> search · <span class="kbd">Esc</span> clear</p>
+  <div class="bar">
+    <span id="feedBadge" style="display:none" title="The Windows Live Captions relay is feeding captions.">🪟 Listening through Live Captions</span>
+    <button id="listen" class="btn primary" type="button" title="Pick the call tab and tick 'Also share tab audio'">🖥️ Listen to call tab</button>
+    <button id="listenMic" class="btn" type="button" title="Listen through the microphone (needs speakers)">🎙️ Mic</button>
+    <select id="lang" title="Speaker's language">
+      <option value="en-US">English (US)</option>
+      <option value="en-GB">English (UK)</option>
+      <option value="en-IN">English (India)</option>
+      <option value="en-AU">English (Australia)</option>
+    </select>
+    <button id="pin" class="btn" type="button" aria-pressed="false" title="Keep the current card">📌 Pin card</button>
+    <button id="tr" class="btn" type="button" title="Translate what you hear, on this device">🌐 Translate</button>
+    <button id="ai" class="btn" type="button" aria-pressed="false" style="display:none" title="Send finished caption sentences to the AI helpers you configured">✨ AI off</button>
+    <span id="aiSending">● sending text to AI</span>
+    <button id="cloud" class="btn" type="button" style="display:none">☁️ Use cloud speech recognition (sends audio to the browser vendor)</button>
+    <span id="status">Not listening. Press 🖥️ to listen to the call tab (Zoom, Meet, Teams…).</span>
+  </div>
+  <div id="live">
+    <p id="heard"></p>
+    <p id="heardTr"></p>
+    <div id="sugg"></div>
+    <div id="alts"></div>
+    <div id="draft"></div>
+  </div>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Or type to search the cards…" autocomplete="off">
+    <button class="chip" data-f="all" aria-pressed="true">All</button>
+    <button class="chip" data-f="ok">✅</button>
+    <button class="chip" data-f="gap">⚠️</button>
+    <button class="chip" data-f="ask">❓</button>
+  </div>
+</div></header>
+<main><div class="wrap">
+  <div class="nums" id="stats"></div>
+  <div id="grid" class="grid"></div>
+  <p id="empty" class="empty"></p>
+
+  <details class="box" id="txBox" open>
+    <summary>📝 Transcript (captions + translation). Kept in this browser only; audio is never stored</summary>
+    <div class="bar">
+      <button id="copyAll" class="btn primary" type="button">📋 Copy all</button>
+      <button id="saveTxt" class="btn" type="button">💾 Save .txt</button>
+      <button id="sumBtn" class="btn" type="button" style="display:none">✨ AI summary + follow-ups</button>
+      <button id="newSess" class="btn" type="button">🧹 New session</button>
+    </div>
+    <div id="summary"></div>
+    <div id="log"></div>
+  </details>
+  <section class="box"><h3>🛟 Lifelines (buy time, stay accurate)</h3><ul id="lifelines"></ul></section>
+  <section class="box"><h3>⛔ Don't say</h3><ul id="dontSay"></ul></section>
+</div></main>
+<script src="app.js"></script>
+</body>
+</html>
