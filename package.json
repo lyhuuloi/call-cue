@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.mjs",
     "demo": "node server.mjs --mock-ai --open-demo",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test"
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^1.0.0"

@@ -126,19 +126,22 @@ async function startListen(kind) {
     srcTrack.addEventListener("ended", () => { if (listening && srcKind === "tab") { stopListen(); status("⏸ Tab sharing stopped. Press 🖥️ to listen again."); } });
   }
   srcKind = kind;
-  const lang = $("lang").value; let local = false;
+  const lang = $("lang").value; let local = false, why = "this Chrome has no on-device speech recognition";
   if (typeof SR.available === "function") {
     try {
       let a = await SR.available({ langs: [lang], processLocally: true });
       if (a === "downloadable" || a === "downloading") {
-        status("⬇️ Downloading the on-device speech model (once)…");
-        const ok = await withTimeout(SR.install({ langs: [lang], processLocally: true }), 90000);
-        a = ok === true ? "available" : a;
-      }
+        status("⬇️ Downloading the on-device speech model for " + lang + " (once, can take a minute)…");
+        const ok = await withTimeout(SR.install({ langs: [lang], processLocally: true }), 120000);
+        if (ok === true) a = "available";
+        else why = ok === "timeout" ? "the model download is taking long; press the button again in a minute" : "the model download failed";
+      } else if (a !== "available") why = "Chrome has no on-device model for " + lang;
       local = a === "available";
-    } catch { local = false; }
+    } catch (e) {
+      why = e.name === "NotAllowedError" ? "Chrome needs a click to download the model; press the button again" : "model check failed (" + e.name + ")";
+    }
   }
-  if (!local && !allowCloud) { status("⚠️ No on-device speech model for " + lang + ". Try English (US), or press ☁️ to allow cloud recognition."); $("cloud").style.display = ""; return; }
+  if (!local && !allowCloud) { status("⚠️ On-device speech is not ready: " + why + ". Or press ☁️ to use cloud recognition."); $("cloud").style.display = ""; return; }
   rec = new SR(); rec.lang = lang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
   if (local) rec.processLocally = true;
   rec.onresult = (e) => {
@@ -150,6 +153,7 @@ async function startListen(kind) {
     if (e.error === "no-speech" || e.error === "aborted") return;
     if (e.error === "not-allowed" || e.error === "service-not-allowed") { listening = false; status("❌ Permission blocked (" + e.error + "). Allow it from the lock icon next to the address, then retry."); setBtn(); return; }
     if (e.error === "language-not-supported" && local) { listening = false; status("⚠️ " + lang + " is not on this device. Pick English (US) or press ☁️."); $("cloud").style.display = ""; setBtn(); return; }
+    if (e.error === "audio-capture") { listening = false; try { rec.stop(); } catch {} status("❌ No audio input. " + (srcKind === "mic" ? "Check that a microphone is connected and that the system allows Chrome to use it." : "The shared tab stopped sending audio; press 🖥️ again.")); setBtn(); return; }
     status("⚠️ Recognition error: " + e.error + " (retrying)");
   };
   const go = () => (srcKind === "tab" ? rec.start(srcTrack) : rec.start());
@@ -201,7 +205,7 @@ setInterval(() => {
 }, 700);
 async function toggleTr() {
   const b = $("tr"), target = KB.translateTo || "vi";
-  if (trOn) { trOn = false; b.className = "btn"; b.textContent = "🌐 Translate"; renderTr(); return; }
+  if (trOn) { trOn = false; b.className = "btn"; b.textContent = "🌐 Translate → " + target; renderTr(); return; }
   if (!("Translator" in self)) { status("⚠️ This browser has no on-device translator. Use a recent Google Chrome."); return; }
   const o = { sourceLanguage: "en", targetLanguage: target };
   let a = "unavailable"; try { a = await withTimeout(Translator.availability(o), 8000); } catch {}

@@ -74,7 +74,7 @@ export function jevRequest(kb, latest, recent, model = "jev-latest") {
       },
       covered: {
         type: "noul",
-        instructions: "Is `latest_sentence` a question or request that one of `answer_cards` answers?",
+        instructions: "Would one of `answer_cards` be a fitting reply to what was said in `latest_sentence`?",
       },
     },
   };
@@ -231,10 +231,18 @@ export function createServer(opts) {
     } catch (e) {
       const code = e.code === 413 || e.code === 400 ? e.code : 502;
       if (code === 502) console.error("[call-cue]", e.message);
-      return send(res, code, { error: e.message });
+      return send(res, code, { error: friendly(e) });
     }
   });
   return { server, kb, ai };
+}
+
+export function friendly(e) {
+  const s = e.status ?? Number((/^(?:TypeSafe )?(\d{3})\b/.exec(e.message) || [])[1]);
+  if (s === 401 || s === 403) return "the AI service rejected the API key; check it and restart the server";
+  if (s === 429) return "the AI service is rate limiting; try again shortly";
+  if (e.name === "TimeoutError" || e.name === "AbortError") return "the AI service timed out";
+  return e.message.slice(0, 300);
 }
 
 function openBrowser(u) {
@@ -248,7 +256,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.log("Usage: node server.mjs [--kb file.json] [--port 8765] [--mock-ai] [--open] [--open-demo]");
     process.exit(0);
   }
+  if (!Number.isInteger(opts.port) || opts.port < 1 || opts.port > 65535) { console.error("--port needs a number from 1 to 65535"); process.exit(2); }
   const { server, kb, ai } = createServer(opts);
+  server.on("error", (e) => {
+    console.error(e.code === "EADDRINUSE" ? `Port ${opts.port} is busy (is call-cue already running?). Try --port ${opts.port + 10}.` : String(e));
+    process.exit(1);
+  });
   server.listen(opts.port, "127.0.0.1", () => {
     const u = `http://127.0.0.1:${opts.port}/` + (opts.openDemo ? "?demo" : "");
     console.log(`call-cue: ${u}`);

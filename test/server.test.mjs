@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
-import { loadKb, jevRequest, decideMatch, mockMatch, createServer, parseArgs } from "../server.mjs";
+import { loadKb, jevRequest, decideMatch, mockMatch, createServer, parseArgs, friendly } from "../server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const KB = path.join(HERE, "..", "kb", "example.json");
@@ -123,3 +123,11 @@ test("server: static files stay inside public/", () => withServer({}, async (por
   assert.equal((await req(port, { path: "/%2e%2e/server.mjs" })).status, 404);
   assert.equal((await req(port, { path: "/..%2fkb%2fexample.json" })).status, 404);
 }));
+
+test("friendly errors hide raw API bodies", () => {
+  assert.match(friendly(Object.assign(new Error('401 {"type":"error"}'), { status: 401 })), /rejected the API key/);
+  assert.match(friendly(new Error("TypeSafe 401: nope")), /rejected the API key/);
+  assert.match(friendly(new Error("TypeSafe 429: slow down")), /rate limiting/);
+  assert.match(friendly(Object.assign(new Error("x"), { name: "TimeoutError" })), /timed out/);
+  assert.equal(friendly(new Error("something else")), "something else");
+});
