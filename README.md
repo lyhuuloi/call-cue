@@ -4,6 +4,8 @@
 Windows Live Captions), and when the other side asks something your knowledge base covers,
 the approved answer appears on screen by itself. No typing during the call.
 
+![call-cue during a call: the question was heard and the approved answer card is shown](docs/screenshot-card.png)
+
 - 🔒 **Private by default.** Speech recognition and translation run on your device in
   Chrome. Without AI keys, nothing leaves your machine.
 - 🗂️ **Your knowledge base is one JSON file:** answer cards, numbers, lifelines and
@@ -16,30 +18,50 @@ the approved answer appears on screen by itself. No typing during the call.
 
 ## Quick start
 
-Needs Node.js 20+ and a recent Google Chrome.
+You need **Node.js 20+** and **Google Chrome**. One command, nothing to configure:
 
 ```bash
-git clone <this repo> call-cue && cd call-cue
-npm run demo        # plays a sample call with mock AI, no keys needed
+npx github:<owner>/call-cue --demo
 ```
 
-To use it on a real call:
+It opens Chrome and plays a sample call with a mock AI, so you can see it work without
+keys or a microphone. Nothing leaves your machine.
+
+**On a real call:**
 
 ```bash
-node server.mjs --open                    # http://127.0.0.1:8765/
-node server.mjs --kb my-kb.json --open    # your own knowledge base
+npx github:<owner>/call-cue                      # http://127.0.0.1:8765/
+npx github:<owner>/call-cue --kb my-kb.json      # your own knowledge base
 ```
 
 Then press **🖥️ Listen to call tab**, pick the tab with your Zoom / Meet / Teams call and
-tick **Also share tab audio**. Or press **🎙️ Mic**.
+tick **Also share tab audio**. Or press **🎙️ Mic**. The first time, Chrome downloads its
+on-device speech model (press the button again if it asks).
+
+It follows your system's light or dark theme.
+
+<details><summary>Light theme</summary>
+
+![call-cue in the light theme](docs/screenshot-light.png)
+</details>
+
+<details><summary>Prefer a clone?</summary>
+
+```bash
+git clone https://github.com/<owner>/call-cue && cd call-cue
+npm run demo        # sample call with mock AI
+npm start           # real use, opens the page
+```
+</details>
 
 ### Windows Live Captions (optional)
 
-On Windows 11 you can feed Live Captions instead, which works with desktop call apps too:
+On Windows 11 you can feed Live Captions instead, which works with desktop call apps too.
+From a clone:
 
 ```powershell
 # 1. Turn on Live Captions: Win + Ctrl + L
-node server.mjs --open
+npm start
 powershell -ExecutionPolicy Bypass -File captions\live-captions.ps1
 ```
 
@@ -49,17 +71,18 @@ call-cue page at `127.0.0.1`. It also writes `call-transcript-*.txt` next to the
 
 ## AI helpers (optional)
 
+![An AI draft, marked as not approved, when no card covers the question](docs/screenshot-draft.png)
+
 | Helper | What it does | Enable with |
 |---|---|---|
 | **Card matching** (Jev) | Picks the card for each finished sentence when keywords miss; says "none" when no card fits | `TYPESAFE_API_KEY` |
-| **Drafts** (Claude) | When no card fits a question, drafts 1 to 3 sentences from your knowledge base, shown as *AI draft, not approved* | `ANTHROPIC_API_KEY` + `npm install` |
-| **Summary** (Claude) | After the call: what was asked, what was answered, follow-ups | `ANTHROPIC_API_KEY` + `npm install` |
+| **Drafts** (Claude) | When no card fits a question, drafts 1 to 3 sentences from your knowledge base, shown as *AI draft, not approved* | `ANTHROPIC_API_KEY` |
+| **Summary** (Claude) | After the call: what was asked, what was answered, follow-ups | `ANTHROPIC_API_KEY` |
 
 ```bash
-npm install                                  # only needed for Claude
 export TYPESAFE_API_KEY=...                  # https://typesafe.ai
 export ANTHROPIC_API_KEY=...                 # https://console.anthropic.com
-node server.mjs --open
+npx github:<owner>/call-cue                  # (from a clone: npm install && npm start)
 ```
 
 Keys stay in the local server; the page never sees them. Even with keys set, AI stays
@@ -119,7 +142,7 @@ replaces the keyword pick unless you have pinned a card.
 
 ```bash
 npm test            # node --test, no network
-node server.mjs --mock-ai --open-demo
+node server.mjs --demo
 ```
 
 ## Tiếng Việt (tóm tắt)
@@ -131,7 +154,7 @@ thẻ trả lời** khi đối phương hỏi đúng chủ đề trong knowledge
 - Knowledge base là **một file JSON** (xem `kb/example.json`).
 - AI là **tuỳ chọn** và phải bấm **✨ AI** mới bật: Jev chọn thẻ, Claude viết nháp khi
   không có thẻ phù hợp và tóm tắt sau cuộc gọi.
-- Chạy thử: `npm run demo`.
+- Chạy thử, một lệnh: `npx github:<owner>/call-cue --demo`.
 
 ## License
 

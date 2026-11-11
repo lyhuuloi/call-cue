@@ -3,7 +3,7 @@
 // configure keys) runs the AI helpers. Listens on 127.0.0.1 only. API keys stay here,
 // never in the page.
 //
-//   node server.mjs [--kb kb/example.json] [--port 8765] [--mock-ai] [--open] [--open-demo]
+//   node server.mjs [--kb kb/example.json] [--port 8765] [--demo] [--mock-ai] [--open] [--open-demo]
 //
 // Environment:
 //   TYPESAFE_API_KEY   enables AI card matching with Jev (https://docs.typesafe.ai)
@@ -27,6 +27,7 @@ export function parseArgs(argv) {
     else if (a === "--mock-ai") o.mockAi = true;
     else if (a === "--open") o.open = true;
     else if (a === "--open-demo") { o.open = true; o.openDemo = true; }
+    else if (a === "--demo") { o.mockAi = true; o.open = true; o.openDemo = true; }
     else if (a === "-h" || a === "--help") o.help = true;
     else throw new Error("Unknown option: " + a);
   }
@@ -250,10 +251,12 @@ function openBrowser(u) {
   try { spawn(cmd[0], cmd[1], { stdio: "ignore", detached: true }).unref(); } catch { /* print the URL instead */ }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Resolve symlinks: npx and global installs start us through node_modules/.bin/call-cue.
+const isMain = () => { try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (process.argv[1] && isMain()) {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
-    console.log("Usage: node server.mjs [--kb file.json] [--port 8765] [--mock-ai] [--open] [--open-demo]");
+    console.log("Usage: node server.mjs [--kb file.json] [--port 8765] [--demo] [--mock-ai] [--open] [--open-demo]");
     process.exit(0);
   }
   if (!Number.isInteger(opts.port) || opts.port < 1 || opts.port > 65535) { console.error("--port needs a number from 1 to 65535"); process.exit(2); }

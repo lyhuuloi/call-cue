@@ -61,6 +61,7 @@ test("mockMatch picks by word overlap", () => {
 test("parseArgs", () => {
   const o = parseArgs(["--port", "9000", "--mock-ai", "--open-demo"]);
   assert.equal(o.port, 9000); assert.ok(o.mockAi && o.open && o.openDemo);
+  const d = parseArgs(["--demo"]); assert.ok(d.mockAi && d.open && d.openDemo);
   assert.throws(() => parseArgs(["--nope"]), /Unknown/);
 });
 

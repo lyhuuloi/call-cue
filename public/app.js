@@ -18,7 +18,7 @@ function cardHTML(c) {
     <h2>${esc(c.title)}</h2>
     <div class="say">${c.say.map((s) => "<p>🗣️ " + esc(s) + "</p>").join("")}</div>
     ${c.facts.length ? "<ul class='facts'>" + c.facts.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : ""}
-    ${c.note ? `<div class="vn">💡 ${esc(c.note)}</div>` : ""}`;
+    ${c.note ? `<div class="note">💡 ${esc(c.note)}</div>` : ""}`;
 }
 function render() {
   const q = $("q");
@@ -29,7 +29,7 @@ function render() {
     const hay = [c.title, c.topic, c.say.join(" "), c.facts.join(" "), c.note, c.keywords].join(" ").toLowerCase();
     if (terms.length && !terms.every((t) => hay.includes(t))) continue;
     shown++;
-    const el = document.createElement("article"); el.className = "card";
+    const el = document.createElement("article"); el.className = "card" + (c.id === cur ? " active" : ""); el.dataset.id = c.id;
     el.innerHTML = hl(cardHTML(c), terms.map(esc));
     $("grid").appendChild(el);
   }
@@ -68,13 +68,15 @@ function showCard(id, alts, by) {
   const c = byId[id]; if (!c) return;
   cur = id; curBy = by || "";
   $("sugg").innerHTML = cardHTML(c);
+  for (const el of document.querySelectorAll("#grid .card")) el.classList.toggle("active", el.dataset.id === id);
   if (by) $("sugg").querySelector(".meta").insertAdjacentHTML("beforeend", `<span id="aiBadge">${esc(by)}</span>`);
   $("alts").innerHTML = altsHTML(alts);
 }
 function update() {
+  liveMark();
   const now = Date.now();
   const ft = finals.filter((f) => now - f.t <= WINDOW_MS).map((f) => f.x).join(" ").trim().split(/\s+/).slice(-30).join(" ");
-  $("heard").innerHTML = "👂 " + (ft || interim ? "<b>" + esc(ft) + "</b> <i>" + esc(interim) + "</i>" : "<i>waiting for someone to speak…</i>");
+  $("heard").innerHTML = (ft || interim ? "<b>" + esc(ft) + "</b> <i>" + esc(interim) + "</i>" : "<i>waiting for someone to speak…</i>");
   trNoteInterim(interim);
   if (!cur) $("sugg").innerHTML = '<p class="wait">🔎 The answer card <b>appears here by itself</b> when they ask about something in your knowledge base. No typing needed.</p>';
   if (pinned) return;
@@ -171,7 +173,9 @@ function setBtn() {
   const b = $("listen"), m = $("listenMic");
   b.textContent = listening && srcKind === "tab" ? "⏹ Stop" : "🖥️ Listen to call tab"; b.className = listening && srcKind === "tab" ? "btn on" : listening ? "btn" : "btn primary";
   m.textContent = listening && srcKind === "mic" ? "⏹ Stop" : "🎙️ Mic"; m.className = listening && srcKind === "mic" ? "btn on" : "btn";
+  liveMark();
 }
+const liveMark = () => $("live").classList.toggle("listening", listening || feedState === "ok");
 
 // ---------- transcript ----------
 const TX_KEY = "call-cue-transcript";
@@ -290,7 +294,7 @@ function setFeedState(st) {
   if (st === "none" || (st === "stale" && !feedEverOn)) return;
   const on = st === "ok";
   if (on) { feedEverOn = true; $("live").classList.add("show"); update(); }
-  $("feedBadge").style.display = on ? "" : "none";
+  $("feedBadge").style.display = on ? "" : "none"; liveMark();
   ["listen", "listenMic", "lang"].forEach((id) => { $(id).style.display = on && !listening ? "none" : ""; });
   if (!listening) status(FEED_MSG[st] || "ℹ️ Caption relay: " + st);
 }
@@ -319,7 +323,9 @@ async function playDemo() {
   listening = true; srcKind = "demo";
   $("listen").className = "btn on"; $("listen").textContent = "▶️ Demo call";
   $("live").classList.add("show"); update();
-  status("▶️ Playing the demo call from the knowledge base.");
+  // With the mock AI nothing leaves the machine, so the demo shows the AI helpers too.
+  if (KB.ai && KB.ai.mock && !aiOn) toggleAi();
+  status("▶️ Playing the demo call from the knowledge base" + (aiOn ? " (✨ mock AI on, nothing leaves this machine)." : "."));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const line of lines) {
     const w = line.split(" ");

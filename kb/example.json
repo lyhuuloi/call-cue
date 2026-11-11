@@ -18,7 +18,7 @@
       "title": "Opening: introductions",
       "say": ["Hi, this is Alex from Acme Prints. Thanks for making the time. Anything I can't answer today, I'll confirm in writing."],
       "facts": [],
-      "note": "Mở đầu: giới thiệu, hẹn trả lời bằng văn bản những câu chưa chắc.",
+      "note": "Open warmly; promise written answers for anything unsure.",
       "keywords": "hello intro introductions who are you",
       "triggers": [["introduc*", 3], ["thanks for joining", 3], ["get started", 2]]
     },
@@ -27,7 +27,7 @@
       "title": "Do you enforce MFA?",
       "say": ["Staff sign in through single sign-on with MFA. Our seller-facing app does not have MFA yet; it is first on our plan."],
       "facts": ["✅ SSO + MFA for all staff.", "⚠️ No MFA on the seller app yet."],
-      "note": "MFA: nhân viên có, app cho seller chưa có. Nói thẳng, kèm kế hoạch.",
+      "note": "Staff yes, seller app not yet. Say it plainly, with the plan.",
       "keywords": "mfa 2fa two factor multi-factor authentication login otp",
       "triggers": [["mfa", 3], ["multi factor", 3], ["two factor", 3], ["2fa", 3], ["authentication", 1]]
     },
@@ -36,7 +36,7 @@
       "title": "Encryption at rest: is customer data encrypted?",
       "say": ["Yes. Our databases and file storage are encrypted with AES-256, using managed keys."],
       "facts": ["✅ 2 / 2 databases and 12 / 12 storage buckets encrypted."],
-      "note": "Mã hoá lưu trữ: đạt.",
+      "note": "Fully in place.",
       "keywords": "encryption at rest encrypted aes kms database disk storage",
       "triggers": [["at rest", 3], ["encrypt*", 1], ["aes", 2], ["encrypted storage", 2]]
     },
@@ -45,7 +45,7 @@
       "title": "Encryption in transit: TLS 1.2+?",
       "say": ["All traffic uses HTTPS with TLS 1.2 or newer, and database connections require TLS."],
       "facts": ["✅ TLS 1.2 minimum on every public hostname."],
-      "note": "Mã hoá đường truyền: đạt.",
+      "note": "Fully in place.",
       "keywords": "tls ssl https transit certificate",
       "triggers": [["in transit", 3], ["tls", 3], ["https", 2]]
     },
@@ -54,7 +54,7 @@
       "title": "Logging: what do you log, how long, who reviews?",
       "say": ["Every cloud API call is logged. Application logs are kept 90 days today; we are moving to 12 months with a review every two weeks."],
       "facts": ["✅ Cloud audit log in all regions.", "⚠️ App logs 90 days; no regular review yet."],
-      "note": "Log: đạt một phần (lưu 90 ngày, chưa review định kỳ).",
+      "note": "Partly: 90 days kept, no regular review yet.",
       "keywords": "log logging monitoring audit trail alert review retention",
       "triggers": [["log", 2], ["logs", 2], ["logging", 3], ["monitor*", 2], ["audit trail*", 3], ["keep the logs", 3], ["reviews", 2]]
     },
@@ -63,7 +63,7 @@
       "title": "Backups and recovery: retention, restore tests?",
       "say": ["Database backups run every day and are kept 7 days. We are adding a cross-region copy and a documented restore test."],
       "facts": ["⚠️ 7-day retention; no restore test on record."],
-      "note": "Backup: có, nhưng chưa test khôi phục.",
+      "note": "Backups exist, restore not tested yet.",
       "keywords": "backup restore recovery disaster snapshot",
       "triggers": [["backup*", 3], ["back up", 3], ["restore*", 3], ["recovery", 2]]
     },
@@ -72,7 +72,7 @@
       "title": "Do you delete buyer data after delivery?",
       "say": ["Yes. Buyer names, addresses and phone numbers are removed 30 days after delivery."],
       "facts": ["✅ Automatic purge 30 days after delivery."],
-      "note": "Xoá dữ liệu người mua sau 30 ngày: đạt.",
+      "note": "Buyer data deleted after 30 days: in place.",
       "keywords": "retention delete deletion purge 30 days personal data",
       "triggers": [["retention", 2], ["delete*", 2], ["deletion", 2], ["purge", 2], ["30 days", 3], ["how long do you keep", 3]]
     },
@@ -81,7 +81,7 @@
       "title": "Who do you share buyer data with?",
       "say": ["Only with the carrier that delivers the order, and only the name and shipping address. We never sell or market with it."],
       "facts": ["Carriers only; no marketing use."],
-      "note": "Chia sẻ dữ liệu: chỉ hãng vận chuyển.",
+      "note": "Shared with shipping carriers only.",
       "keywords": "share sharing third party subcontractor vendor partner carrier sell",
       "triggers": [["third party", 2], ["share", 1], ["sharing", 2], ["subcontractor*", 3], ["vendor*", 2], ["partner*", 2]]
     },
@@ -90,7 +90,7 @@
       "title": "\"When will you fix it?\" / timeline",
       "say": ["I'd rather not give you a date I haven't confirmed. We'll send a dated plan for each item in writing."],
       "facts": ["Ask back: what remediation window do you expect?"],
-      "note": "Không hứa ngày trên call.",
+      "note": "Never promise a date on the call.",
       "keywords": "when date timeline deadline fix plan remediation",
       "triggers": [["when will", 2], ["timeline", 3], ["deadline*", 2], ["fix the", 1]]
     }
