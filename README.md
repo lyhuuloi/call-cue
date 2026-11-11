@@ -21,7 +21,7 @@ the approved answer appears on screen by itself. No typing during the call.
 You need **Node.js 20+** and **Google Chrome**. One command, nothing to configure:
 
 ```bash
-npx github:<owner>/call-cue --demo
+npx github:lyhuuloi/call-cue --demo
 ```
 
 It opens Chrome and plays a sample call with a mock AI, so you can see it work without
@@ -30,8 +30,8 @@ keys or a microphone. Nothing leaves your machine.
 **On a real call:**
 
 ```bash
-npx github:<owner>/call-cue                      # http://127.0.0.1:8765/
-npx github:<owner>/call-cue --kb my-kb.json      # your own knowledge base
+npx github:lyhuuloi/call-cue                      # http://127.0.0.1:8765/
+npx github:lyhuuloi/call-cue --kb my-kb.json      # your own knowledge base
 ```
 
 Then press **🖥️ Listen to call tab**, pick the tab with your Zoom / Meet / Teams call and
@@ -48,7 +48,7 @@ It follows your system's light or dark theme.
 <details><summary>Prefer a clone?</summary>
 
 ```bash
-git clone https://github.com/<owner>/call-cue && cd call-cue
+git clone https://github.com/lyhuuloi/call-cue && cd call-cue
 npm run demo        # sample call with mock AI
 npm start           # real use, opens the page
 ```
@@ -82,7 +82,7 @@ call-cue page at `127.0.0.1`. It also writes `call-transcript-*.txt` next to the
 ```bash
 export TYPESAFE_API_KEY=...                  # https://typesafe.ai
 export ANTHROPIC_API_KEY=...                 # https://console.anthropic.com
-npx github:<owner>/call-cue                  # (from a clone: npm install && npm start)
+npx github:lyhuuloi/call-cue                  # (from a clone: npm install && npm start)
 ```
 
 Keys stay in the local server; the page never sees them. Even with keys set, AI stays
@@ -154,7 +154,7 @@ thẻ trả lời** khi đối phương hỏi đúng chủ đề trong knowledge
 - Knowledge base là **một file JSON** (xem `kb/example.json`).
 - AI là **tuỳ chọn** và phải bấm **✨ AI** mới bật: Jev chọn thẻ, Claude viết nháp khi
   không có thẻ phù hợp và tóm tắt sau cuộc gọi.
-- Chạy thử, một lệnh: `npx github:<owner>/call-cue --demo`.
+- Chạy thử, một lệnh: `npx github:lyhuuloi/call-cue --demo`.
 
 ## License
 
