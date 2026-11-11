@@ -103,8 +103,8 @@ async function jevMatch(kb, latest, recent) {
 
 // Offline stand-in for tests and demos: overlap between the sentence and each card's
 // keywords, ignoring common words, with a crude plural strip ("logs" -> "log").
-const STOP = new Set("the and for you your with what how who does have any are this that data customer customers".split(" "));
-const stems = (s, min) => new Set((String(s).toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length >= min && !STOP.has(w)).map((w) => w.replace(/s$/, "")));
+export const STOP = new Set("the and for you your with what how who does have any are this that data customer customers".split(" "));
+export const stems = (s, min) => new Set((String(s).toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length >= min && !STOP.has(w)).map((w) => w.replace(/s$/, "")));
 export function mockMatch(kb, latest) {
   const words = stems(latest, 2);
   let best = null, bestScore = 0;

@@ -228,9 +228,12 @@ async function toggleTr() {
 let aiOn = false, aiSeq = 0, aiInflight = 0;
 const AI_MIN_WORDS = 4;
 function aiSending(d) { aiInflight += d; $("aiSending").classList.toggle("on", aiInflight > 0); }
+// The hosted web demo has no server: build-pages.mjs adds static.js, which answers here.
+const STATIC = window.CALL_CUE_STATIC || null;
 async function api(path, body) {
   aiSending(1);
   try {
+    if (STATIC) { await new Promise((r) => setTimeout(r, 250)); return STATIC.api(path, body, KB); }
     const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
@@ -339,7 +342,7 @@ async function playDemo() {
 
 // ---------- boot ----------
 async function boot() {
-  try { KB = await (await fetch("/api/kb", { cache: "no-store" })).json(); }
+  try { KB = await (await fetch(STATIC ? STATIC.kbUrl : "/api/kb", { cache: "no-store" })).json(); }
   catch { document.body.innerHTML = "<p style='padding:20px'>Could not load the knowledge base. Start the page with <code>node server.mjs</code> and open http://127.0.0.1:8765/</p>"; return; }
   byId = Object.fromEntries(KB.cards.map((c) => [c.id, c]));
   compileTriggers();
@@ -408,7 +411,8 @@ async function boot() {
     tickWorker.onerror = () => { tickWorker = null; setTimeout(pollFeed, 400); };
   } catch { tickWorker = null; }
   // The Live Captions relay only exists on Windows; ?feed forces polling elsewhere.
-  if (/Windows/.test(navigator.userAgent) || new URLSearchParams(location.search).has("feed")) pollFeed();
-  if (new URLSearchParams(location.search).has("demo")) playDemo();
+  if (!STATIC && (/Windows/.test(navigator.userAgent) || new URLSearchParams(location.search).has("feed"))) pollFeed();
+  if (STATIC) $("webDemo").style.display = "";
+  if (new URLSearchParams(location.search).has("demo") || (STATIC && !new URLSearchParams(location.search).has("nodemo"))) playDemo();
 }
 boot();

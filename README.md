@@ -4,6 +4,9 @@
 Windows Live Captions), and when the other side asks something your knowledge base covers,
 the approved answer appears on screen by itself. No typing during the call.
 
+**▶️ [Try it in your browser](https://lyhuuloi.github.io/call-cue/)**: no install, a sample call
+plays by itself (Chrome recommended).
+
 ![call-cue during a call: the question was heard and the approved answer card is shown](docs/screenshot-card.png)
 
 - 🔒 **Private by default.** Speech recognition and translation run on your device in
@@ -154,7 +157,8 @@ thẻ trả lời** khi đối phương hỏi đúng chủ đề trong knowledge
 - Knowledge base là **một file JSON** (xem `kb/example.json`).
 - AI là **tuỳ chọn** và phải bấm **✨ AI** mới bật: Jev chọn thẻ, Claude viết nháp khi
   không có thẻ phù hợp và tóm tắt sau cuộc gọi.
-- Chạy thử, một lệnh: `npx github:lyhuuloi/call-cue --demo`.
+- Xem thử ngay trên trình duyệt, không cần cài: https://lyhuuloi.github.io/call-cue/
+- Chạy trên máy, một lệnh: `npx github:lyhuuloi/call-cue --demo`.
 
 ## License
 
