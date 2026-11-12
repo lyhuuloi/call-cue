@@ -3,3 +3,4 @@ node_modules/
 !kb/**/*.txt
 .env
 dist/
+*.bak

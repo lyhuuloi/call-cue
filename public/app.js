@@ -347,10 +347,164 @@ async function playDemo() {
   status("⏹ Demo finished.");
 }
 
+// ---------- add cards from a document ----------
+// Files are read here in the browser (import.js). Only when you pick the AI option does
+// the text go to the local server, which sends it to the AI you configured.
+const IMP = globalThis.CallCueImport, LOCAL_KEY = "call-cue-kb-local", MAX_CARDS = 254;
+let impDocs = [], impDraft = [];
+const impSay = (id, s, err) => { $(id).textContent = s; $(id).classList.toggle("err", !!err); };
+const impHow = () => document.querySelector("input[name=impHow]:checked").value;
+const impMode = () => document.querySelector("input[name=impMode]:checked").value;
+const realAi = () => !STATIC && KB.ai.draft && !KB.ai.mock;
+function impFilesHTML() {
+  $("impFiles").innerHTML = impDocs.map((d, i) => `<li class="${d.error ? "bad" : ""}" title="${esc(d.error || "")}">${d.error ? "⚠️" : "📄"} ${esc(d.name)}${d.error ? ": " + esc(d.error) : d.cards ? " · " + d.cards.length + " cards" : " · " + Math.max(1, Math.round(d.text.length / 1000)) + "k characters"}<button type="button" data-i="${i}" aria-label="Remove ${esc(d.name)}">✕</button></li>`).join("");
+}
+async function impAddFiles(files) {
+  for (const f of files) {
+    impSay("impMsg", "⏳ Reading " + f.name + "…");
+    try {
+      const d = await IMP.readFile(f);
+      if (d.text !== undefined && !d.text.trim()) throw new Error("no text found in it");
+      impDocs.push(d);
+    } catch (e) { impDocs.push({ name: f.name, error: e.message || String(e) }); }
+    impFilesHTML();
+  }
+  impSay("impMsg", "");
+}
+function impOpen() {
+  impDocs = []; impDraft = []; impFilesHTML(); $("impText").value = ""; impSay("impMsg", ""); impStep(1);
+  const ai = realAi(), who = aiNames();
+  $("impAiOpt").classList.toggle("off", !ai);
+  $("impAiOpt").querySelector("input").disabled = !ai;
+  $("impAiName").textContent = ai ? "✨ Let " + who + " write the cards" : "✨ Let an AI write the cards";
+  $("impAiHint").textContent = ai ? "Sends the document text to " + who + ". Best for policies, manuals and other long prose."
+    : STATIC ? "Not in the web demo. Install call-cue and add one AI key to use this." : "Off: no AI key is configured. Add one key to .env and restart to use this.";
+  document.querySelector(`input[name=impHow][value=${ai ? "ai" : "local"}]`).checked = true;
+  $("imp").showModal();
+}
+function impStep(n) { $("imp1").hidden = n !== 1; $("imp2").hidden = n !== 2; }
+async function impMake() {
+  const docs = impDocs.filter((d) => !d.error);
+  const text = docs.filter((d) => d.text).map((d) => d.text).concat($("impText").value).join("\n\n").trim();
+  let raw = docs.flatMap((d) => d.cards || []);
+  if (!text && !raw.length) { impSay("impMsg", "Add a file or paste some text first.", true); return; }
+  const btn = $("impMake"); btn.disabled = true;
+  try {
+    if (text && impHow() === "ai") {
+      const all = IMP.chunkText(text, 20000), parts = all.slice(0, 8);
+      for (let i = 0; i < parts.length; i++) {
+        impSay("impMsg", `✨ ${aiNames()} is writing cards… part ${i + 1} of ${parts.length} (can take a minute)`);
+        const got = IMP.parseAiCards((await api("/api/import", { text: parts[i] })).text);
+        raw = raw.concat(got);
+      }
+      if (all.length > parts.length) impSay("impMsg2", "ℹ️ The document is long: only the first " + parts.length * 20 + "k characters were read. Add the rest in a second round.");
+    } else if (text) raw = raw.concat(IMP.textToCards(text));
+  } catch (e) {
+    impSay("impMsg", "⚠️ The AI could not write the cards (" + e.message + "). You can switch to “Split by headings and questions”.", true);
+    btn.disabled = false; return;
+  }
+  btn.disabled = false;
+  impDraft = IMP.finishCards(raw);
+  if (!impDraft.length) {
+    impSay("impMsg", impHow() === "ai" ? "The AI found nothing to turn into a card." : "Found no headings or questions to split on. " + (realAi() ? "Try the AI option." : "Add a heading or a question line before each answer, or set up an AI key."), true);
+    return;
+  }
+  impSay("impMsg", ""); impReview();
+}
+function impReview() {
+  const fresh = KB.source === "example";
+  $("impCount").textContent = impDraft.length + (impDraft.length === 1 ? " card found." : " cards found.");
+  $("impList").innerHTML = impDraft.map((c, i) => `<div class="impRow" data-i="${i}">
+    <div class="impRowHead"><input type="checkbox" class="k" checked aria-label="Keep this card">
+      <select class="s" aria-label="Status">${Object.keys(LABEL).map((k) => `<option value="${k}"${k === c.status ? " selected" : ""}>${LABEL[k]}</option>`).join("")}</select>
+      <input type="text" class="t" value="${esc(c.title)}" aria-label="Question" placeholder="Question">
+      <input type="text" class="tp" value="${esc(c.topic)}" aria-label="Topic" placeholder="Topic"></div>
+    <textarea class="say" rows="3" aria-label="What you say" placeholder="What you say">${esc(c.say.join("\n"))}</textarea>
+    <textarea class="facts" rows="${Math.min(4, Math.max(1, c.facts.length))}" aria-label="Facts" placeholder="Facts, one per line (optional)">${esc(c.facts.join("\n"))}</textarea>
+    <input type="text" class="kw" value="${esc(c.keywords)}" aria-label="Keywords" placeholder="Words that should bring this card up">
+  </div>`).join("");
+  document.querySelector(`input[name=impMode][value=${fresh ? "replace" : "add"}]`).checked = true;
+  $("impReplaceHint").textContent = fresh ? "(the example cards go away; recommended for your own knowledge base)" : STATIC ? "" : "(the current file is kept as a .bak copy)";
+  $("impKbTitle").value = fresh ? "" : KB.title || "";
+  impModeUi(); impStep(2); $("impList").scrollTop = 0;
+}
+function impModeUi() {
+  $("impKbTitle").style.display = impMode() === "replace" ? "" : "none";
+  const n = document.querySelectorAll("#impList .k:checked").length;
+  $("impSave").textContent = "💾 Save " + n + (n === 1 ? " card" : " cards");
+  $("impSave").disabled = !n;
+}
+// The reviewed rows -> cards. Triggers are rebuilt when the title or keywords changed.
+function impCollect() {
+  const rows = [];
+  for (const el of document.querySelectorAll("#impList .impRow")) {
+    if (!el.querySelector(".k").checked) continue;
+    const c = impDraft[+el.dataset.i], v = (q) => el.querySelector(q).value;
+    const lines = (q) => v(q).split("\n").map((x) => x.trim()).filter(Boolean);
+    const same = v(".t").trim() === c.title && v(".kw").trim() === c.keywords;
+    rows.push({ id: same ? c.id : "", status: v(".s"), topic: v(".tp"), title: v(".t"), say: lines(".say"), facts: lines(".facts"), note: c.note, keywords: v(".kw"), triggers: same ? c.triggers : [] });
+  }
+  return rows;
+}
+function impMerged() {
+  const mode = impMode(), cards = IMP.finishCards(impCollect(), mode === "add" ? KB.cards.map((c) => c.id) : []);
+  if (!cards.length) throw new Error("Every kept card needs a question and an answer.");
+  const total = cards.length + (mode === "add" ? KB.cards.length : 0);
+  if (total > MAX_CARDS) throw new Error(`That makes ${total} cards; the limit is ${MAX_CARDS}. Untick ${total - MAX_CARDS} or more.`);
+  return { mode, cards, title: $("impKbTitle").value.trim(), kb: IMP.mergeKb(KB, { mode, cards, title: $("impKbTitle").value.trim(), fresh: KB.source === "example" }) };
+}
+async function impSave() {
+  let m; try { m = impMerged(); } catch (e) { impSay("impMsg2", "⚠️ " + e.message, true); return; }
+  $("impSave").disabled = true;
+  try {
+    let where;
+    if (STATIC) {
+      KB = { ...m.kb, ai: KB.ai, source: "local" };
+      try { localStorage.setItem(LOCAL_KEY, JSON.stringify(m.kb)); where = "in this browser"; } catch { where = "for this visit only (browser storage is full or blocked)"; }
+    } else {
+      const r = await fetch("/api/kb/cards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: m.mode, title: m.title, cards: m.cards }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+      KB = await (await fetch("/api/kb", { cache: "no-store" })).json();
+      where = "to " + d.file;
+    }
+    applyKb(); $("imp").close();
+    status(`💾 Saved ${m.cards.length} ${m.cards.length === 1 ? "card" : "cards"} ${where}. The knowledge base now has ${KB.cards.length}.`);
+  } catch (e) { impSay("impMsg2", "⚠️ Could not save: " + e.message, true); }
+  $("impSave").disabled = false;
+}
+function impDownload() {
+  let m; try { m = impMerged(); } catch (e) { impSay("impMsg2", "⚠️ " + e.message, true); return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(m.kb, null, 2) + "\n"], { type: "application/json" }));
+  a.download = "call-cue-kb.json";
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  impSay("impMsg2", "⬇️ Downloaded. Put the file in the folder you start call-cue from.");
+}
+function setupImport() {
+  $("impOpen").addEventListener("click", impOpen);
+  $("impClose").addEventListener("click", () => $("imp").close());
+  $("impFile").addEventListener("change", (e) => { impAddFiles([...e.target.files]); e.target.value = ""; });
+  const drop = $("impDrop");
+  for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
+  for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); });
+  drop.addEventListener("drop", (e) => impAddFiles([...e.dataTransfer.files]));
+  $("impFiles").addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b) { impDocs.splice(+b.dataset.i, 1); impFilesHTML(); } });
+  $("impMake").addEventListener("click", impMake);
+  $("impBack").addEventListener("click", () => { impSay("impMsg2", ""); impStep(1); });
+  $("impList").addEventListener("change", (e) => { if (e.target.classList.contains("k")) { e.target.closest(".impRow").classList.toggle("skip", !e.target.checked); impModeUi(); } });
+  $("impMode").addEventListener("change", impModeUi);
+  $("impSave").addEventListener("click", impSave);
+  $("impDl").addEventListener("click", impDownload);
+  $("impReset").addEventListener("click", () => {
+    if (!confirm("Remove the cards you added in this browser and show the example again?")) return;
+    try { localStorage.removeItem(LOCAL_KEY); } catch {}
+    location.reload();
+  });
+}
+
 // ---------- boot ----------
-async function boot() {
-  try { KB = await (await fetch(STATIC ? STATIC.kbUrl : "/api/kb", { cache: "no-store" })).json(); }
-  catch { document.body.innerHTML = "<p style='padding:20px'>Could not load the knowledge base. Start the page with <code>node server.mjs</code> and open http://127.0.0.1:8765/</p>"; return; }
+// Fills the page from KB; runs again after cards are added.
+function applyKb() {
   byId = Object.fromEntries(KB.cards.map((c) => [c.id, c]));
   compileTriggers();
   document.title = (KB.title || "call-cue") + " · call-cue";
@@ -361,7 +515,23 @@ async function boot() {
   $("lifelines").innerHTML = (KB.lifelines || []).map((x) => "<li>“" + esc(x) + "”</li>").join("");
   $("dontSay").innerHTML = (KB.dontSay || []).map((x) => "<li>" + esc(x) + "</li>").join("");
   $("empty").textContent = "No card matches. Lifeline: “" + (KB.fallback || "Let me check that and confirm in writing.") + "”";
-  $("tr").textContent = "🌐 Translate → " + (KB.translateTo || "vi");
+  $("tr").textContent = trOn ? $("tr").textContent : "🌐 Translate → " + (KB.translateTo || "vi");
+  $("kbInfo").textContent = KB.cards.length + " cards · " + (KB.source === "example" ? "example knowledge base" : KB.source === "local" ? "saved in this browser" : KB.file || "");
+  $("impReset").style.display = KB.source === "local" ? "" : "none";
+  if (cur && !byId[cur]) { cur = null; $("alts").innerHTML = ""; $("sugg").innerHTML = '<p class="wait">🔎 The answer card <b>appears here by itself</b> when they ask about something in your knowledge base.</p>'; }
+  render();
+}
+async function boot() {
+  try {
+    KB = await (await fetch(STATIC ? STATIC.kbUrl : "/api/kb", { cache: "no-store" })).json();
+    if (STATIC) {
+      KB.source = "example";
+      // Cards added in the web demo live in this browser only.
+      try { const mine = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null"); if (mine && Array.isArray(mine.cards) && mine.cards.length) KB = { ...mine, ai: KB.ai, source: "local" }; } catch {}
+    }
+  }
+  catch { document.body.innerHTML = "<p style='padding:20px'>Could not load the knowledge base. Start the page with <code>node server.mjs</code> and open http://127.0.0.1:8765/</p>"; return; }
+  applyKb();
   if (aiReady()) {
     $("ai").title += KB.ai.mock ? "" : " (" + aiNames() + ")";
     try { if (localStorage.getItem("call-cue-ai") === "1") toggleAi(); } catch {}
@@ -418,6 +588,7 @@ async function boot() {
     try { $("summary").textContent = (await api("/api/summary", { transcript: t })).text; }
     catch (e) { $("summary").textContent = "⚠️ " + e.message; }
   });
+  setupImport();
   $("newSess").addEventListener("click", () => {
     if (!confirm("Clear the transcript on this page and start a new session?")) return;
     $("log").textContent = ""; $("summary").textContent = ""; $("draft").innerHTML = "";
@@ -425,8 +596,6 @@ async function boot() {
     finals.length = 0; interim = ""; trFinals = []; trInterim = ""; feedEmitted = []; feedLastCap = ""; cur = null; update(); renderTr();
     status("🧹 New session.");
   });
-  render();
-
   try {
     tickWorker = new Worker(URL.createObjectURL(new Blob(["onmessage=e=>setTimeout(()=>postMessage(0),e.data)"], { type: "text/javascript" })));
     tickWorker.onmessage = () => pollFeed();
@@ -435,6 +604,6 @@ async function boot() {
   // The Live Captions relay only exists on Windows; ?feed forces polling elsewhere.
   if (!STATIC && (/Windows/.test(navigator.userAgent) || new URLSearchParams(location.search).has("feed"))) pollFeed();
   if (STATIC) $("webDemo").style.display = "";
-  if (new URLSearchParams(location.search).has("demo") || (STATIC && !new URLSearchParams(location.search).has("nodemo"))) playDemo();
+  if (new URLSearchParams(location.search).has("demo") || (STATIC && (KB.demo || []).length && !new URLSearchParams(location.search).has("nodemo"))) playDemo();
 }
 boot();

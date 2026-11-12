@@ -29,7 +29,7 @@
 html{color-scheme:light dark}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .wrap{max-width:1280px;margin:0 auto;padding:0 20px}
-button,select,input{font:inherit}
+button,select,input,textarea{font:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* top bar */
@@ -155,6 +155,47 @@ details.box[open] summary{margin-bottom:10px}
 #summary:empty{display:none}
 .kbd{font:12px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:4px;padding:0 5px}
 
+/* add cards from a document */
+.kbBar{margin-bottom:10px;justify-content:space-between}
+#kbInfo{font-size:12.5px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 120px}
+dialog#imp{width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 32px);border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--ink);padding:18px 20px 16px;box-shadow:var(--shadow)}
+dialog#imp::backdrop{background:rgba(10,12,17,.55);backdrop-filter:blur(3px)}
+.impHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.impHead h2{font-size:17px;font-weight:680;margin:0;letter-spacing:-.015em}
+.drop{display:block;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:var(--r);background:var(--raised);padding:22px 16px;text-align:center;cursor:pointer;font-size:14.5px;transition:background .15s,border-color .15s}
+.drop:hover,.drop.over{background:var(--accent-bg);border-color:var(--accent)}
+.drop small{display:block;color:var(--muted);font-size:12.5px;margin-top:4px}
+#impFiles{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+#impFiles:empty{display:none}
+#impFiles li{display:flex;align-items:center;gap:6px;background:var(--accent-bg);color:var(--accent);border-radius:999px;padding:3px 6px 3px 11px;font-size:12.5px;font-weight:600}
+#impFiles li.bad{background:var(--live-bg);color:var(--live)}
+#impFiles button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:13px;padding:0 4px;line-height:1}
+dialog#imp textarea,dialog#imp input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);padding:8px 11px;font-size:14px;line-height:1.45;resize:vertical}
+dialog#imp textarea::placeholder,dialog#imp input::placeholder{color:var(--muted)}
+#impText{margin-top:10px}
+dialog#imp fieldset{border:0;margin:12px 0 0;padding:0;display:grid;gap:6px}
+dialog#imp fieldset label{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px 11px;cursor:pointer;font-size:13.5px}
+dialog#imp fieldset label:has(input:checked){border-color:color-mix(in srgb,var(--accent) 60%,transparent);background:var(--accent-bg)}
+dialog#imp fieldset label.off{opacity:.6;cursor:default}
+dialog#imp fieldset input[type=radio]{margin-top:3px;accent-color:var(--accent)}
+dialog#imp fieldset small{display:block;color:var(--muted);font-size:12.5px;font-weight:400}
+.impMsg{font-size:13px;color:var(--muted);margin:10px 0 0;min-height:19px;white-space:pre-wrap}
+.impMsg.err{color:var(--live)}
+.bar.end{justify-content:flex-end;margin-top:10px}
+.impLead{font-size:13.5px;color:var(--muted);margin:0 0 10px}
+.impLead b{color:var(--ink)}
+#impList{display:grid;gap:10px;max-height:min(46vh,460px);overflow:auto;padding:2px;scrollbar-width:thin}
+.impRow{border:1px solid var(--line);border-radius:var(--r);background:var(--raised);padding:10px 12px;display:grid;gap:7px}
+.impRow.skip{opacity:.45}
+.impRowHead{display:flex;gap:8px;align-items:center}
+.impRowHead input[type=checkbox]{width:17px;height:17px;flex:none;accent-color:var(--accent)}
+.impRowHead select{flex:none;padding:6px 7px;font-size:13px}
+.impRowHead .t{flex:1 1 auto;min-width:0;font-weight:650}
+.impRowHead .tp{flex:0 1 130px;min-width:0}
+.impRow .say{border-left:3px solid var(--accent);border-radius:4px 10px 10px 4px}
+.impRow .facts,.impRow .kw{font-size:13px!important}
+#impKbTitle{margin-top:2px}
+
 #webDemo{background:var(--ask-bg);color:var(--ink);border-bottom:1px solid var(--line);padding:8px 16px;font-size:13.5px;text-align:center}
 #webDemo a{color:var(--ask);font-weight:700}
 
@@ -164,5 +205,7 @@ details.box[open] summary{margin-bottom:10px}
   #sugg h2{font-size:18px}#sugg .say{font-size:18px;padding:12px 14px}
   .grid{grid-template-columns:1fr}.nums{grid-template-columns:repeat(2,1fr)}
   .sep{display:none}
+  dialog#imp{padding:14px 13px 12px}
+  .impRowHead{flex-wrap:wrap}.impRowHead .t{flex-basis:100%;order:3}.impRowHead .tp{flex:1 1 90px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

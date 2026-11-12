@@ -18,6 +18,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import "./public/import.js"; // card helpers shared with the page (sets globalThis.CallCueImport)
+
+const Import = globalThis.CallCueImport;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -82,9 +85,8 @@ export function init(cwd = process.cwd()) {
 }
 
 // ---------- knowledge base ----------
-export function loadKb(file) {
-  const kb = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!Array.isArray(kb.cards) || !kb.cards.length) throw new Error(file + ": needs a non-empty \"cards\" array");
+export function checkKb(kb, label) {
+  if (!kb || !Array.isArray(kb.cards) || !kb.cards.length) throw new Error(label + ": needs a non-empty \"cards\" array");
   const ids = new Set();
   for (const c of kb.cards) {
     if (!/^[a-z0-9_-]{1,40}$/i.test(c.id || "")) throw new Error("card id must be 1-40 letters, digits, - or _: " + JSON.stringify(c.id));
@@ -95,6 +97,10 @@ export function loadKb(file) {
     c.facts ||= []; c.triggers ||= []; c.keywords ||= ""; c.note ||= ""; c.topic ||= ""; c.status ||= "info";
   }
   if (kb.cards.length > 254) throw new Error("at most 254 cards (Jev choice takes 255 options including \"none\")");
+  return kb;
+}
+export function loadKb(file) {
+  const kb = checkKb(JSON.parse(fs.readFileSync(file, "utf8")), file);
   // Optional long-form docs for AI drafts: kb.docsFile points at a markdown/text file next to the KB.
   if (kb.docsFile) kb.docs = (kb.docs ? kb.docs + "\n\n" : "") + fs.readFileSync(path.resolve(path.dirname(file), kb.docsFile), "utf8");
   return kb;
@@ -272,12 +278,19 @@ Never promise dates, certifications or anything the knowledge base does not stat
 If the knowledge base does not cover the question, reply with a polite holding line that offers to confirm in writing.
 Output only the sentences, no preamble.`;
 
+const IMPORT_INSTRUCTION = `You turn a document into answer cards for a person who takes live calls. Each card answers one question a caller could ask.
+Use only what the document states. Never invent facts, numbers, dates or promises. Skip navigation, legal boilerplate and anything that answers no question.
+Write in the language of the document.`;
+const IMPORT_FORMAT = `Reply with JSON only, no other text, in this shape:
+{"cards":[{"title":"the question, as a caller would ask it","topic":"one or two words","status":"info","say":["1 to 3 short sentences to read aloud, first person plural"],"facts":["short supporting fact", "..."],"keywords":"8 to 12 lowercase words a caller would use when asking this"}]}
+Rules: one card per distinct question; at most 40 cards; "status" is "ok" when the document says it is in place, "gap" when it says it is missing or not offered, "ask" when it says to confirm first, otherwise "info"; "facts" may be empty.`;
+
 const SUMMARY_INSTRUCTION = `Summarise a call transcript for the person who took the call.
 Return plain text with three short sections: "Asked", "Answered", "Follow-ups" (who owes what, with any dates said on the call).
 Base it only on the transcript; mark anything you are unsure of with (?). Use the knowledge base only to recognise topics.`;
 
 // ---------- HTTP ----------
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" };
 
 function send(res, code, body, type = "application/json; charset=utf-8") {
   const b = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === "string" ? body : JSON.stringify(body));
@@ -295,8 +308,9 @@ function readJson(req, limit = 200_000) {
 }
 
 export function createServer(opts) {
-  const kbFile = resolveKb(opts);
-  const kb = loadKb(kbFile);
+  const cwd = opts.cwd || process.cwd();
+  let kbFile = resolveKb(opts, cwd);
+  let kb = loadKb(kbFile);
   const chat = opts.mockAi ? null : pickProvider();
   const jev = !opts.mockAi && !!process.env.TYPESAFE_API_KEY;
   const ai = {
@@ -321,7 +335,7 @@ export function createServer(opts) {
 
     const url = new URL(req.url, "http://localhost");
     try {
-      if (req.method === "GET" && url.pathname === "/api/kb") return send(res, 200, { ...kb, ai });
+      if (req.method === "GET" && url.pathname === "/api/kb") return send(res, 200, { ...kb, ai, source: kbFile === EXAMPLE_KB ? "example" : "file", file: path.basename(kbFile === EXAMPLE_KB ? LOCAL_KB : kbFile) });
       if (req.method === "POST" && url.pathname === "/api/match") {
         if (!ai.match) return send(res, 409, { error: NO_KEY });
         const b = await readJson(req);
@@ -345,6 +359,37 @@ export function createServer(opts) {
         if (ai.mock) return send(res, 200, { text: "(mock summary)\nAsked: " + t.split("\n").filter(Boolean).length + " lines\nAnswered: -\nFollow-ups: -" });
         return send(res, 200, { text: await chatText(chat, SUMMARY_INSTRUCTION, kbForPrompt(kb), "Transcript:\n" + t, 4000) });
       }
+      // A document's text -> cards, written by the chat model. The page shows them for review.
+      if (req.method === "POST" && url.pathname === "/api/import") {
+        if (!chat) return send(res, 409, { error: NO_KEY });
+        const b = await readJson(req, 400_000);
+        const text = String(b.text || "").slice(0, 60_000);
+        if (!text.trim()) return send(res, 400, { error: "text is empty" });
+        return send(res, 200, { text: await chatText(chat, IMPORT_INSTRUCTION, IMPORT_FORMAT, "Document:\n" + text, 8000) });
+      }
+      // Save reviewed cards into the knowledge base file. The bundled example is never
+      // written: with it, the cards go to a new call-cue-kb.json in the start folder.
+      if (req.method === "POST" && url.pathname === "/api/kb/cards") {
+        const b = await readJson(req, 2_000_000);
+        const mode = b.mode === "replace" ? "replace" : "add";
+        const fresh = kbFile === EXAMPLE_KB;
+        const target = fresh ? path.join(cwd, LOCAL_KB) : kbFile;
+        if (fresh && fs.existsSync(target)) return send(res, 409, { error: LOCAL_KB + " already exists in this folder; restart call-cue to use it" });
+        let next;
+        try {
+          const raw = JSON.parse(fs.readFileSync(kbFile, "utf8"));
+          const cards = Import.finishCards(b.cards, mode === "add" ? raw.cards.map((c) => c.id) : []);
+          if (!cards.length) return send(res, 400, { error: "no card with a title and an answer" });
+          next = Import.mergeKb(raw, { mode, cards, title: String(b.title || "").trim().slice(0, 120), fresh });
+          checkKb(structuredClone(next), "knowledge base");
+        } catch (e) { return send(res, 400, { error: e.message }); }
+        if (fs.existsSync(target)) fs.copyFileSync(target, target + ".bak");
+        const tmp = target + ".tmp";
+        fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n");
+        fs.renameSync(tmp, target);
+        kbFile = target; kb = loadKb(target);
+        return send(res, 200, { ok: true, file: target, cards: kb.cards.length });
+      }
       if (req.method === "GET") {
         const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname).replace(/^\/+/, "");
         const file = path.resolve(pub, rel);
@@ -358,7 +403,7 @@ export function createServer(opts) {
       return send(res, code, { error: friendly(e) });
     }
   });
-  return { server, kb, ai, kbFile };
+  return { server, kb, ai, kbFile, current: () => ({ kb, kbFile }) };
 }
 
 export function friendly(e) {
@@ -396,7 +441,7 @@ DEEPSEEK_API_KEY or OPENCODE_API_KEY. See the README for other endpoints.`);
   if (opts.init) {
     const made = init();
     console.log(made.length ? "Created: " + made.join(", ") : `${LOCAL_KB} and .env already exist; nothing changed.`);
-    console.log(`Next: edit ${LOCAL_KB} with your own answers, then run: call-cue`);
+    console.log(`Next: start call-cue from this folder and press "Add from a document" in the page (or edit ${LOCAL_KB} by hand).`);
     process.exit(0);
   }
   if (!Number.isInteger(opts.port) || opts.port < 1 || opts.port > 65535) { console.error("--port needs a number from 1 to 65535"); process.exit(2); }

@@ -216,3 +216,138 @@ test("friendly errors hide raw API bodies", () => {
   assert.match(friendly(Object.assign(new Error("x"), { name: "TimeoutError" })), /timed out/);
   assert.equal(friendly(new Error("something else")), "something else");
 });
+
+// ---------- cards from a document ----------
+import "../public/import.js";
+const Import = globalThis.CallCueImport;
+const FAQ = `# Acme help
+
+## Shipping
+
+How long does delivery take?
+Standard delivery takes 3 to 5 business days. Express takes 1 to 2 days.
+- Tracking is emailed when the parcel leaves.
+
+Q: Do you offer refunds?
+A: Yes, within 30 days of delivery for misprints or damage.
+
+## Returns policy
+Items can be returned within 30 days. Contact support first.`;
+
+test("import: headings, questions and Q/A lines become cards", () => {
+  const cards = Import.finishCards(Import.textToCards(FAQ));
+  assert.deepEqual(cards.map((c) => c.title), ["How long does delivery take?", "Do you offer refunds?", "Returns policy"]);
+  assert.equal(cards[0].topic, "Shipping");
+  assert.match(cards[0].say[0], /3 to 5 business days/);
+  assert.deepEqual(cards[0].facts, ["Tracking is emailed when the parcel leaves."]);
+  assert.equal(cards[1].say[0], "Yes, within 30 days of delivery for misprints or damage.");
+  for (const c of cards) { assert.match(c.id, /^[a-z0-9_-]{1,40}$/); assert.ok(c.triggers.length); }
+});
+
+test("import: generated triggers bring the right card up in the page matcher", () => {
+  const cards = Import.finishCards(Import.textToCards(FAQ));
+  // Same scoring as public/app.js: prefix match on "*", show at 2.5.
+  const norm = (s) => " " + s.toLowerCase().replace(/[^a-z0-9. ]+/g, " ").replace(/\s+/g, " ").trim() + " ";
+  const best = (q) => cards.map((c) => ({ id: c.id, s: c.triggers.reduce((n, [p, w]) => n + (new RegExp(" " + (p.endsWith("*") ? p.slice(0, -1) + "[a-z0-9]*" : p) + " ").test(norm(q)) ? w : 0), 0) })).sort((a, b) => b.s - a.s)[0];
+  const refund = best("can I get a refund for this order");
+  assert.equal(refund.id, cards[1].id); assert.ok(refund.s >= 2.5);
+  const ship = best("when will my delivery arrive");
+  assert.equal(ship.id, cards[0].id); assert.ok(ship.s >= 2.5);
+});
+
+test("import: plain paragraphs still give cards; CSV rows are question and answer", () => {
+  const cards = Import.finishCards(Import.textToCards("Our office is open Monday to Friday from nine to five Eastern time.\n\nPayment is due thirty days after the invoice date and we accept cards."));
+  assert.equal(cards.length, 2);
+  const csv = Import.csvToText('question,answer\n"Do you, ship abroad?",Yes\nWhat is the fee?,"None, ""ever"""');
+  assert.equal(csv, 'Q: Do you, ship abroad?\nA: Yes\n\nQ: What is the fee?\nA: None, "ever"');
+  assert.equal(Import.textToCards(csv).length, 2);
+});
+
+test("import: finishCards drops unusable cards and keeps ids unique and valid", () => {
+  const cards = Import.finishCards([{ title: "A?", say: "one" }, { title: "A?", say: ["two"], status: "bogus", triggers: [["x", 2], "bad", [3]] }, { title: "no answer" }, null, { id: "none", title: "None", say: ["x"] }], ["a"]);
+  assert.equal(cards.length, 3);
+  assert.equal(new Set(cards.map((c) => c.id)).size, 3);
+  assert.ok(!cards.some((c) => c.id === "a" || c.id === "none"));
+  assert.equal(cards[1].status, "info");
+  assert.deepEqual(cards[1].triggers, [["x", 2]]);
+});
+
+test("import: AI output is read with code fences, as a bare list, and when cut off", () => {
+  assert.equal(Import.parseAiCards('Here you go:\n```json\n{"cards":[{"title":"a","say":["b"]}]}\n```').length, 1);
+  assert.equal(Import.parseAiCards('[{"title":"a","say":["b"]},{"title":"c","say":["d"]}]').length, 2);
+  assert.equal(Import.parseAiCards('{"cards":[{"title":"a","say":["b"]},{"title":"c","say":["d').length, 1);
+  assert.deepEqual(Import.parseAiCards("sorry, I cannot"), []);
+});
+
+test("import: long text is split at paragraph breaks", () => {
+  const parts = Import.chunkText(Array.from({ length: 50 }, (_, i) => "Paragraph " + i + " " + "x".repeat(900)).join("\n\n"), 10000);
+  assert.ok(parts.length >= 5 && parts.every((p) => p.length <= 10000));
+});
+
+async function post(port, p, body) {
+  const r = await fetch(`http://127.0.0.1:${port}${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return { status: r.status, body: await r.json() };
+}
+async function withSrv(opts, fn) {
+  const made = createServer({ port: 0, ...opts });
+  await new Promise((r) => made.server.listen(0, "127.0.0.1", r));
+  try { return await fn(made.server.address().port, made); } finally { await new Promise((r) => made.server.close(r)); }
+}
+
+test("POST /api/kb/cards adds to your file and keeps a .bak copy", async () => {
+  const file = tmpKb({ title: "Mine", dontSay: ["never"], cards: [card("one")] });
+  await withSrv({ kb: file, mockAi: true }, async (port, made) => {
+    const r = await post(port, "/api/kb/cards", { mode: "add", cards: [{ id: "one", title: "Second question?", say: ["Second answer."] }] });
+    assert.equal(r.status, 200); assert.equal(r.body.cards, 2);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.equal(saved.cards.length, 2); assert.equal(saved.title, "Mine"); assert.deepEqual(saved.dontSay, ["never"]);
+    assert.notEqual(saved.cards[1].id, "one");
+    assert.ok(saved.cards[1].triggers.length);
+    assert.equal(JSON.parse(fs.readFileSync(file + ".bak", "utf8")).cards.length, 1);
+    assert.equal(made.current().kb.cards.length, 2);
+    const kb = await (await fetch(`http://127.0.0.1:${port}/api/kb`)).json();
+    assert.equal(kb.cards.length, 2); assert.equal(kb.source, "file");
+    const bad = await post(port, "/api/kb/cards", { mode: "add", cards: [{ title: "no answer" }] });
+    assert.equal(bad.status, 400);
+  });
+});
+
+test("POST /api/kb/cards never writes the bundled example: it starts call-cue-kb.json", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "call-cue-"));
+  const before = fs.readFileSync(EXAMPLE_KB, "utf8");
+  await withSrv({ cwd: dir, mockAi: true }, async (port, made) => {
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/kb`)).json()).source, "example");
+    const r = await post(port, "/api/kb/cards", { mode: "replace", title: "Acme help", cards: [{ title: "Do you ship abroad?", say: ["Yes, to 40 countries."] }] });
+    assert.equal(r.status, 200);
+    const mine = JSON.parse(fs.readFileSync(path.join(dir, "call-cue-kb.json"), "utf8"));
+    assert.equal(mine.title, "Acme help"); assert.equal(mine.cards.length, 1);
+    assert.equal(mine.demo, undefined); assert.deepEqual(mine.stats, []);
+    assert.equal(fs.readFileSync(EXAMPLE_KB, "utf8"), before);
+    assert.equal(made.current().kbFile, path.join(dir, "call-cue-kb.json"));
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/kb`)).json()).source, "file");
+  });
+});
+
+test("POST /api/import asks the chat model for cards; without a key it says so", async () => {
+  const file = tmpKb({ cards: [card("one")] });
+  await withSrv({ kb: file, mockAi: true }, async (port) => {
+    assert.equal((await post(port, "/api/import", { text: "anything" })).status, 409);
+  });
+  await withFakeChat(() => ({ text: '{"cards":[{"title":"Do you ship abroad?","say":["Yes."],"keywords":"ship abroad international"}]}' }), async (base, seen) => {
+    await withEnv({ CALL_CUE_AI: "custom", CALL_CUE_AI_BASE_URL: base, CALL_CUE_AI_MODEL: "m" }, async () => {
+      await withSrv({ kb: file }, async (port) => {
+        const r = await post(port, "/api/import", { text: "We ship to 40 countries." });
+        assert.equal(r.status, 200);
+        assert.equal(Import.finishCards(Import.parseAiCards(r.body.text)).length, 1);
+        assert.match(JSON.stringify(seen), /We ship to 40 countries/);
+        assert.equal((await post(port, "/api/import", { text: " " })).status, 400);
+      });
+    });
+  });
+});
+
+test("CHANGELOG.md has an entry for the version in package.json", () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const v = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+  assert.ok(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8").includes("## " + v), "add a \"## " + v + "\" section to CHANGELOG.md");
+});

@@ -62,6 +62,11 @@
 
   <section class="library" aria-label="Knowledge base">
     <div class="nums" id="stats"></div>
+    <div class="bar kbBar">
+      <span id="kbInfo"></span>
+      <button id="impOpen" class="btn" type="button" title="Turn a PDF, Word file, web page or pasted text into answer cards">📥 Add from a document</button>
+      <button id="impReset" class="btn" type="button" style="display:none">↩️ Back to the example</button>
+    </div>
     <div class="bar search">
       <input id="q" type="search" placeholder="Search the cards…  ( / )" autocomplete="off">
       <button class="chip" data-f="all" aria-pressed="true">All</button>
@@ -85,6 +90,41 @@
     </details>
   </section>
 </main>
+
+<dialog id="imp" aria-labelledby="impTitle">
+  <div class="impHead"><h2 id="impTitle">📥 Add cards from a document</h2><button id="impClose" class="btn ghost" type="button" aria-label="Close">✕</button></div>
+  <div id="imp1">
+    <label id="impDrop" class="drop">
+      <input id="impFile" type="file" multiple hidden accept=".pdf,.docx,.txt,.md,.markdown,.html,.htm,.csv,.tsv,.json">
+      <b>Drop files here</b> or click to choose
+      <small>PDF, Word (.docx), text, Markdown, HTML, CSV. Files are read in this browser, not uploaded.</small>
+    </label>
+    <ul id="impFiles"></ul>
+    <textarea id="impText" rows="6" placeholder="…or paste text here: an FAQ, a policy, your notes"></textarea>
+    <fieldset id="impHow">
+      <label id="impAiOpt"><input type="radio" name="impHow" value="ai"> <span><b id="impAiName">✨ Let the AI write the cards</b><small id="impAiHint"></small></span></label>
+      <label><input type="radio" name="impHow" value="local" checked> <span><b>✂️ Split by headings and questions</b><small>Done on this device; nothing is sent anywhere. Works best with FAQ-style documents.</small></span></label>
+    </fieldset>
+    <p id="impMsg" class="impMsg" role="status"></p>
+    <div class="bar end"><button id="impMake" class="btn primary" type="button">Make cards →</button></div>
+  </div>
+  <div id="imp2" hidden>
+    <p class="impLead"><b id="impCount"></b> Check each one: untick what you do not want, fix the wording you will read aloud.</p>
+    <div id="impList"></div>
+    <fieldset id="impMode">
+      <label><input type="radio" name="impMode" value="add"> <span><b>Add to my cards</b></span></label>
+      <label><input type="radio" name="impMode" value="replace"> <span><b>Replace all cards</b> <small id="impReplaceHint"></small></span></label>
+      <input id="impKbTitle" type="text" maxlength="120" placeholder="Name of this knowledge base">
+    </fieldset>
+    <p id="impMsg2" class="impMsg" role="status"></p>
+    <div class="bar end">
+      <button id="impBack" class="btn" type="button">← Back</button>
+      <button id="impDl" class="btn" type="button">⬇️ Download call-cue-kb.json</button>
+      <button id="impSave" class="btn primary" type="button">💾 Save</button>
+    </div>
+  </div>
+</dialog>
+<script src="import.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

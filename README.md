@@ -11,7 +11,9 @@ plays by itself (Chrome recommended).
 
 - 🔒 **Private by default.** Speech recognition and translation run on your device in
   Chrome. Without AI keys, nothing leaves your machine.
-- 🗂️ **Your knowledge base is one JSON file:** answer cards, numbers, lifelines and
+- 📥 **Load your knowledge base from documents, in the page:** drop a PDF, Word file,
+  text, Markdown, HTML or CSV file (or paste text) and it becomes answer cards.
+- 🗂️ **It is stored as one JSON file:** answer cards, numbers, lifelines and
   "don't say" lines.
 - ✨ **Optional AI, opt-in on every call.** Works with **Claude, ChatGPT, DeepSeek,
   OpenCode** or any OpenAI-compatible endpoint (Ollama, OpenRouter…). It picks the card
@@ -47,7 +49,7 @@ npx github:lyhuuloi/call-cue init
 ```
 
 This writes `call-cue-kb.json` (your answer cards, a copy of the example) and `.env`
-(where an AI key goes, optional). Edit `call-cue-kb.json` with your own answers.
+(where an AI key goes, optional).
 
 **3️⃣ Run it on a real call:**
 
@@ -57,6 +59,9 @@ npx github:lyhuuloi/call-cue
 
 Chrome opens at `http://127.0.0.1:8765/`. Press **🖥️ Listen to call tab**, pick the tab
 with your call and tick **Also share tab audio**. Or press **🎙️ Mic**.
+
+**4️⃣ Put in your own answers:** press **📥 Add from a document** in the page (next
+section), or edit `call-cue-kb.json` by hand.
 
 ✅ **It works when** the sentence you hear appears next to **NOW** and a card shows up
 under it. The first time, Chrome downloads its on-device speech model; press the button
@@ -146,6 +151,34 @@ Keys stay in the local server; the page never sees them. Even with a key set, AI
 
 ⚠️ `.env` holds a secret. Keep it out of git and shared folders.
 
+## Add your knowledge base from documents
+
+![The review step: cards made from a document, ready to check and save](docs/screenshot-import.png)
+
+1. Press **📥 Add from a document** above the cards.
+2. Drop your files or paste text. Supported: **PDF, Word (.docx), text, Markdown, HTML,
+   CSV, JSON** (a call-cue knowledge base). Old `.doc`, Pages and scanned PDFs without
+   text are not read: save them as `.docx` or a text PDF first.
+3. Choose how the cards are made:
+
+   | | What it does | What leaves your machine |
+   |---|---|---|
+   | ✂️ **Split by headings and questions** | Each heading or question becomes a card, the text under it becomes the answer. Best for FAQ-style documents. | Nothing |
+   | ✨ **Let the AI write the cards** (needs an AI key) | The AI reads the text and writes short answers, facts and keywords. Best for policies and long prose. | The document text goes to the AI you configured |
+
+4. **Check every card** (untick, fix the wording you will read aloud), pick **Add to my
+   cards** or **Replace all cards**, then **💾 Save**.
+
+✅ Done when the page shows your cards and the line above them reads
+`N cards · call-cue-kb.json`. The file is written in the folder you started call-cue
+from; the previous version is kept next to it as `call-cue-kb.json.bak`. The bundled
+example is never changed. ⬇️ **Download** gives you the file without saving.
+
+⚠️ The AI can misread a document. Read each card before you rely on it in a call.
+
+Files are opened in your browser and are not uploaded. PDF reading uses the bundled
+[pdf.js](https://mozilla.github.io/pdf.js/) (Apache-2.0, in `public/vendor/`).
+
 ## Knowledge base format
 
 See [`kb/example.json`](kb/example.json) (a fictional company). The essentials:
@@ -197,7 +230,8 @@ node server.mjs --demo
 npm run build:web    # the static web demo, into dist/
 ```
 
-Changes per version: [CHANGELOG.md](CHANGELOG.md).
+Changes per version: [CHANGELOG.md](CHANGELOG.md). Every version bump adds an entry
+there; `npm test` fails when the version in `package.json` has none.
 
 ## Tiếng Việt (tóm tắt)
 
@@ -218,6 +252,9 @@ npx github:lyhuuloi/call-cue          # 3. chạy thật
 - **AI nào cũng được:** thêm một dòng vào `.env`: `ANTHROPIC_API_KEY` (Claude),
   `OPENAI_API_KEY` (ChatGPT), `DEEPSEEK_API_KEY` (DeepSeek), `OPENCODE_API_KEY` (OpenCode),
   hoặc `CALL_CUE_AI_BASE_URL` + `CALL_CUE_AI_MODEL` cho Ollama, OpenRouter…
+- **Nạp knowledge base từ tài liệu ngay trên trang:** bấm **📥 Add from a document**, thả
+  file PDF, Word (.docx), text, Markdown, HTML, CSV (hoặc dán chữ), kiểm tra các thẻ rồi
+  bấm **💾 Save**. File được đọc trong trình duyệt; thẻ lưu vào `call-cue-kb.json`.
 - AI chỉ chạy khi bạn bấm **✨ AI** trên trang, và chỉ gửi chữ, không gửi âm thanh.
 - Xem thử ngay trên trình duyệt, không cần cài: https://lyhuuloi.github.io/call-cue/
 
