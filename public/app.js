@@ -258,11 +258,18 @@ async function aiOnFinal(sentence) {
     } catch (e) { status("⚠️ AI draft failed (" + e.message + ")."); }
   }
 }
+const aiReady = () => KB.ai.match || KB.ai.draft;
+const aiNames = () => [...new Set([KB.ai.matchBy, KB.ai.draftBy].filter(Boolean))].join(" + ") || "AI";
+function notice(html) { const n = $("req"); n.innerHTML = html; n.style.display = html ? "" : "none"; }
+const AI_SETUP = `<b>✨ AI is optional</b> and off: no key is configured. Stop call-cue, put <b>one</b> key in a <code>.env</code> file in the folder you start it from, then start it again:<br>
+<code>ANTHROPIC_API_KEY=…</code> (Claude) · <code>OPENAI_API_KEY=…</code> (ChatGPT) · <code>DEEPSEEK_API_KEY=…</code> (DeepSeek) · <code>OPENCODE_API_KEY=…</code> (OpenCode).<br>
+<code>call-cue init</code> creates the <code>.env</code> file for you. Cards still appear without AI, from the keywords in your knowledge base.`;
 function toggleAi() {
+  if (!aiReady()) { notice($("req").style.display === "none" ? AI_SETUP : ""); return; }
   aiOn = !aiOn;
   const b = $("ai"); b.setAttribute("aria-pressed", String(aiOn));
   b.textContent = aiOn ? "✨ AI on" : "✨ AI off";
-  status(aiOn ? "✨ AI on: each finished sentence (text, not audio) goes to " + [KB.ai.match && "the matching model", KB.ai.draft && "the drafting model"].filter(Boolean).join(" and ") + (KB.ai.mock ? " (mock, nothing leaves this machine)." : ".") : "AI off: nothing leaves this machine.");
+  status(aiOn ? "✨ AI on: each finished sentence (text, not audio) goes to " + (KB.ai.mock ? "a pretend AI (nothing leaves this machine)." : aiNames() + ".") : "AI off: nothing leaves this machine.");
   try { localStorage.setItem("call-cue-ai", aiOn ? "1" : "0"); } catch {}
 }
 
@@ -355,10 +362,25 @@ async function boot() {
   $("dontSay").innerHTML = (KB.dontSay || []).map((x) => "<li>" + esc(x) + "</li>").join("");
   $("empty").textContent = "No card matches. Lifeline: “" + (KB.fallback || "Let me check that and confirm in writing.") + "”";
   $("tr").textContent = "🌐 Translate → " + (KB.translateTo || "vi");
-  if (KB.ai.match || KB.ai.draft) {
-    $("ai").style.display = "";
+  if (aiReady()) {
+    $("ai").title += KB.ai.mock ? "" : " (" + aiNames() + ")";
     try { if (localStorage.getItem("call-cue-ai") === "1") toggleAi(); } catch {}
-  }
+  } else { $("ai").textContent = "✨ AI: add a key"; $("ai").classList.add("setup"); }
+  // Requirements the page can check for itself.
+  if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) notice("<b>⚠️ This browser cannot listen.</b> call-cue needs desktop <b>Google Chrome</b> (version 139 or newer) for speech recognition. You can still search the cards and play the demo here.");
+  const applyTheme = (t) => { if (t) document.documentElement.dataset.theme = t; };
+  try { applyTheme(localStorage.getItem("call-cue-theme")); } catch {}
+  $("theme").addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    applyTheme(dark ? "light" : "dark");
+    try { localStorage.setItem("call-cue-theme", dark ? "light" : "dark"); } catch {}
+  });
+  // Click a card in the list to put it on the stage and keep it there.
+  $("grid").addEventListener("click", (e) => {
+    const el = e.target.closest(".card"); if (!el || String(getSelection())) return;
+    pinned = true; $("pin").setAttribute("aria-pressed", "true"); $("draft").innerHTML = "";
+    showCard(el.dataset.id, rank(windowText(), recentText()));
+  });
   if (KB.ai.draft) $("sumBtn").style.display = "";
   try { const v = localStorage.getItem(TX_KEY); if (v) $("log").textContent = v; } catch {}
   $("log").textContent.split("\n").slice(-15).forEach((l) => { const m = l.match(/^\[\d\d:\d\d:\d\d\] (.*)$/); if (m) feedEmitted.push(sentKey(m[1])); });

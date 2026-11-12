@@ -1,6 +1,6 @@
 {
   "name": "call-cue",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Live answer cards for calls: hears the question, shows the approved answer from your knowledge base, translates captions on-device.",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "call-cue": "server.mjs"
   },
   "scripts": {
-    "start": "node server.mjs --open",
+    "start": "node server.mjs",
     "demo": "node server.mjs --demo",
     "test": "node --test",
     "build:web": "node scripts/build-pages.mjs"

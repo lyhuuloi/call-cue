@@ -3,72 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>call-cue</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="webDemo" style="display:none">🧪 <b>Web demo</b> with a pretend AI: nothing you say leaves your browser. The 🖥️ and 🎙️ buttons work here too. To use it on real calls with your own knowledge base, <a href="https://github.com/lyhuuloi/call-cue#quick-start">install call-cue</a> (one command).</div>
-<header><div class="wrap">
+<header class="top"><div class="wrap">
   <div class="brand">
     <span class="logo" aria-hidden="true"><span class="dot"></span></span>
-    <div><h1 id="kbTitle">call-cue</h1>
-    <p class="sub"><span id="kbSub"></span> · <span class="kbd">/</span> search · <span class="kbd">Esc</span> clear</p></div>
+    <div class="brandText"><h1 id="kbTitle">call-cue</h1>
+    <p class="sub"><span id="kbSub"></span></p></div>
   </div>
-  <div class="bar">
-    <span id="feedBadge" style="display:none" title="The Windows Live Captions relay is feeding captions.">🪟 Listening through Live Captions</span>
-    <button id="listen" class="btn primary" type="button" title="Pick the call tab and tick 'Also share tab audio'">🖥️ Listen to call tab</button>
-    <button id="listenMic" class="btn" type="button" title="Listen through the microphone (needs speakers)">🎙️ Mic</button>
-    <select id="lang" title="Speaker's language">
-      <option value="en-US">English (US)</option>
-      <option value="en-GB">English (UK)</option>
-      <option value="en-IN">English (India)</option>
-      <option value="en-AU">English (Australia)</option>
-    </select>
-    <button id="pin" class="btn" type="button" aria-pressed="false" title="Keep the current card">📌 Pin card</button>
-    <button id="tr" class="btn" type="button" title="Translate what you hear, on this device">🌐 Translate</button>
-    <button id="ai" class="btn" type="button" aria-pressed="false" style="display:none" title="Send finished caption sentences to the AI helpers you configured">✨ AI off</button>
+  <div class="topRight">
+    <span id="feedBadge" style="display:none" title="The Windows Live Captions relay is feeding captions.">🪟 Live Captions</span>
     <span id="aiSending">● sending text to AI</span>
-    <button id="cloud" class="btn" type="button" style="display:none">☁️ Use cloud speech recognition (sends audio to the browser vendor)</button>
-    <span id="status">Not listening. Press 🖥️ to listen to the call tab (Zoom, Meet, Teams…).</span>
-  </div>
-  <div id="live" class="show">
-    <div class="liveHead"><span class="liveTag">Now</span><p id="heard"><i>Not listening yet.</i></p></div>
-    <p id="heardTr"></p>
-    <div id="sugg"><ol class="how">
-      <li><b>Press 🖥️ Listen to call tab</b> and pick your Zoom, Meet or Teams tab (tick <i>Also share tab audio</i>). Or press 🎙️ Mic.</li>
-      <li><b>Talk as usual.</b> Speech is recognised on this device.</li>
-      <li><b>The answer card appears here by itself</b> when they ask about something in your knowledge base.</li>
-    </ol></div>
-    <div id="alts"></div>
-    <div id="draft"></div>
-  </div>
-  <div class="bar">
-    <input id="q" type="search" placeholder="Or type to search the cards…" autocomplete="off">
-    <button class="chip" data-f="all" aria-pressed="true">All</button>
-    <button class="chip" data-f="ok">✅</button>
-    <button class="chip" data-f="gap">⚠️</button>
-    <button class="chip" data-f="ask">❓</button>
+    <button id="theme" class="btn ghost" type="button" title="Switch between light and dark">🌗</button>
   </div>
 </div></header>
-<main><div class="wrap">
-  <div class="nums" id="stats"></div>
-  <div id="grid" class="grid"></div>
-  <p id="empty" class="empty"></p>
 
-  <details class="box" id="txBox" open>
-    <summary>📝 Transcript (captions + translation). Kept in this browser only; audio is never stored</summary>
-    <div class="bar">
-      <button id="copyAll" class="btn primary" type="button">📋 Copy all</button>
-      <button id="saveTxt" class="btn" type="button">💾 Save .txt</button>
-      <button id="sumBtn" class="btn" type="button" style="display:none">✨ AI summary + follow-ups</button>
-      <button id="newSess" class="btn" type="button">🧹 New session</button>
+<main class="wrap shell">
+  <section class="stage" aria-label="Live call">
+    <div class="bar controls">
+      <button id="listen" class="btn primary" type="button" title="Pick the call tab and tick 'Also share tab audio'">🖥️ Listen to call tab</button>
+      <button id="listenMic" class="btn" type="button" title="Listen through the microphone (needs speakers)">🎙️ Mic</button>
+      <select id="lang" title="Speaker's language">
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="en-IN">English (India)</option>
+        <option value="en-AU">English (Australia)</option>
+      </select>
+      <span class="sep" aria-hidden="true"></span>
+      <button id="pin" class="btn" type="button" aria-pressed="false" title="Keep the current card">📌 Pin card</button>
+      <button id="tr" class="btn" type="button" title="Translate what you hear, on this device">🌐 Translate</button>
+      <button id="ai" class="btn" type="button" aria-pressed="false" title="Send finished caption sentences (text, never audio) to the AI you configured">✨ AI off</button>
+      <button id="cloud" class="btn" type="button" style="display:none">☁️ Use cloud speech recognition (sends audio to the browser vendor)</button>
     </div>
-    <div id="summary"></div>
-    <div id="log"></div>
-  </details>
-  <section class="box"><h3>🛟 Lifelines (buy time, stay accurate)</h3><ul id="lifelines"></ul></section>
-  <section class="box"><h3>⛔ Don't say</h3><ul id="dontSay"></ul></section>
-</div></main>
+    <p id="status">Not listening. Press 🖥️ to listen to the call tab (Zoom, Meet, Teams…).</p>
+    <div id="req" class="notice" style="display:none"></div>
+
+    <div id="live" class="show">
+      <div class="liveHead"><span class="liveTag">Now</span><p id="heard"><i>Not listening yet.</i></p></div>
+      <p id="heardTr"></p>
+      <div id="sugg"><ol class="how">
+        <li><b>Press 🖥️ Listen to call tab</b> and pick your Zoom, Meet or Teams tab (tick <i>Also share tab audio</i>). Or press 🎙️ Mic.</li>
+        <li><b>Talk as usual.</b> Speech is recognised on this device.</li>
+        <li><b>The answer card appears here by itself</b> when they ask about something in your knowledge base.</li>
+      </ol></div>
+      <div id="alts"></div>
+      <div id="draft"></div>
+    </div>
+
+    <div class="rail">
+      <section class="box"><h3>🛟 Lifelines <span>buy time, stay accurate</span></h3><ul id="lifelines"></ul></section>
+      <section class="box warn"><h3>⛔ Don't say</h3><ul id="dontSay"></ul></section>
+    </div>
+  </section>
+
+  <section class="library" aria-label="Knowledge base">
+    <div class="nums" id="stats"></div>
+    <div class="bar search">
+      <input id="q" type="search" placeholder="Search the cards…  ( / )" autocomplete="off">
+      <button class="chip" data-f="all" aria-pressed="true">All</button>
+      <button class="chip" data-f="ok" title="In place">✅</button>
+      <button class="chip" data-f="gap" title="Gap">⚠️</button>
+      <button class="chip" data-f="ask" title="Confirm">❓</button>
+    </div>
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty"></p>
+
+    <details class="box" id="txBox" open>
+      <summary>📝 Transcript <span>kept in this browser only; audio is never stored</span></summary>
+      <div class="bar">
+        <button id="copyAll" class="btn" type="button">📋 Copy all</button>
+        <button id="saveTxt" class="btn" type="button">💾 Save .txt</button>
+        <button id="sumBtn" class="btn" type="button" style="display:none">✨ AI summary + follow-ups</button>
+        <button id="newSess" class="btn" type="button">🧹 New session</button>
+      </div>
+      <div id="summary"></div>
+      <div id="log"></div>
+    </details>
+  </section>
+</main>
 <script src="app.js"></script>
 </body>
 </html>

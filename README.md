@@ -13,35 +13,69 @@ plays by itself (Chrome recommended).
   Chrome. Without AI keys, nothing leaves your machine.
 - 🗂️ **Your knowledge base is one JSON file:** answer cards, numbers, lifelines and
   "don't say" lines.
-- ✨ **Optional AI, opt-in on every call.** [Jev](https://docs.typesafe.ai) picks the
-  right card when the keywords miss. [Claude](https://docs.anthropic.com) drafts a reply
-  when no card fits, and writes a summary with follow-ups after the call.
+- ✨ **Optional AI, opt-in on every call.** Works with **Claude, ChatGPT, DeepSeek,
+  OpenCode** or any OpenAI-compatible endpoint (Ollama, OpenRouter…). It picks the card
+  when the keywords miss, drafts a reply when no card fits, and summarises the call.
 - 🌐 **On-device translation** of what you hear (Chrome Translator API).
 - 📝 **Transcript** that stays in your browser, with copy and save to `.txt`.
 
+## What you need
+
+| | Needed | Notes |
+|---|---|---|
+| 💻 | **Node.js 20 or newer** | Check with `node -v`. Get it from [nodejs.org](https://nodejs.org). |
+| 🌐 | **Google Chrome on a computer**, a recent version (139 or newer) | Speech recognition and translation run inside Chrome. Other browsers and phones show the cards but may not listen. |
+| 🎧 | **A way for the page to hear the call** | The call in a Chrome tab (Zoom, Meet, Teams web), **or** a microphone with the call on speakers, **or** Windows 11 Live Captions for desktop call apps. |
+| 🗣️ | **The other side speaks English** | US, UK, India and Australia accents are in the list. |
+| 🗂️ | **Your answers in one JSON file** | `init` creates a starter file for you to edit. |
+| ✨ | *Optional:* one AI key | Claude, ChatGPT, DeepSeek, OpenCode or any OpenAI-compatible endpoint. Without a key the keyword matcher still works, fully offline. |
+
+No account, no build step, no database.
+
 ## Quick start
 
-You need **Node.js 20+** and **Google Chrome**. One command, nothing to configure:
+**1️⃣ See it work** (no keys, no microphone; a sample call plays by itself):
 
 ```bash
 npx github:lyhuuloi/call-cue --demo
 ```
 
-It opens Chrome and plays a sample call with a mock AI, so you can see it work without
-keys or a microphone. Nothing leaves your machine.
-
-**On a real call:**
+**2️⃣ Create your files** in the folder you will start it from:
 
 ```bash
-npx github:lyhuuloi/call-cue                      # http://127.0.0.1:8765/
-npx github:lyhuuloi/call-cue --kb my-kb.json      # your own knowledge base
+npx github:lyhuuloi/call-cue init
 ```
 
-Then press **🖥️ Listen to call tab**, pick the tab with your Zoom / Meet / Teams call and
-tick **Also share tab audio**. Or press **🎙️ Mic**. The first time, Chrome downloads its
-on-device speech model (press the button again if it asks).
+This writes `call-cue-kb.json` (your answer cards, a copy of the example) and `.env`
+(where an AI key goes, optional). Edit `call-cue-kb.json` with your own answers.
 
-It follows your system's light or dark theme.
+**3️⃣ Run it on a real call:**
+
+```bash
+npx github:lyhuuloi/call-cue
+```
+
+Chrome opens at `http://127.0.0.1:8765/`. Press **🖥️ Listen to call tab**, pick the tab
+with your call and tick **Also share tab audio**. Or press **🎙️ Mic**.
+
+✅ **It works when** the sentence you hear appears next to **NOW** and a card shows up
+under it. The first time, Chrome downloads its on-device speech model; press the button
+again if it asks.
+
+💡 Tired of typing `npx github:...`? Install it once, then the command is just `call-cue`:
+
+```bash
+npm install -g github:lyhuuloi/call-cue
+```
+
+| Option | What it does |
+|---|---|
+| `--kb my-kb.json` | Use another knowledge base file |
+| `--port 9000` | Use another port |
+| `--no-open` | Do not open the browser |
+| `--demo` | Sample call with a pretend AI |
+
+The 🌗 button switches between light and dark.
 
 <details><summary>Light theme</summary>
 
@@ -52,8 +86,9 @@ It follows your system's light or dark theme.
 
 ```bash
 git clone https://github.com/lyhuuloi/call-cue && cd call-cue
-npm run demo        # sample call with mock AI
-npm start           # real use, opens the page
+npm install         # only needed for Claude
+npm run demo        # sample call with a pretend AI
+npm start           # real use
 ```
 </details>
 
@@ -72,31 +107,44 @@ The relay reads the Live Captions window on your machine and serves it only to t
 call-cue page at `127.0.0.1`. It also writes `call-transcript-*.txt` next to the script
 (`-NoTranscript` turns that off).
 
-## AI helpers (optional)
+## AI (optional): bring the one you already use
 
 ![An AI draft, marked as not approved, when no card covers the question](docs/screenshot-draft.png)
 
-| Helper | What it does | Enable with |
+With one key, the AI does three things: **picks the card** when the keywords miss,
+**drafts a reply** (marked *AI draft, not approved*) when no card fits, and writes a
+**summary with follow-ups** after the call.
+
+Put **one** line in the `.env` file that `init` created, then start call-cue again:
+
+| You use | Line in `.env` | Default model |
 |---|---|---|
-| **Card matching** (Jev) | Picks the card for each finished sentence when keywords miss; says "none" when no card fits | `TYPESAFE_API_KEY` |
-| **Drafts** (Claude) | When no card fits a question, drafts 1 to 3 sentences from your knowledge base, shown as *AI draft, not approved* | `ANTHROPIC_API_KEY` |
-| **Summary** (Claude) | After the call: what was asked, what was answered, follow-ups | `ANTHROPIC_API_KEY` |
+| **Claude** (Anthropic) | `ANTHROPIC_API_KEY=...` | `claude-opus-5-5` |
+| **ChatGPT** (OpenAI) | `OPENAI_API_KEY=...` | `gpt-6-luna` |
+| **DeepSeek** | `DEEPSEEK_API_KEY=...` | `deepseek-flash` |
+| **OpenCode** | `OPENCODE_API_KEY=...` | `deepseek-v4.1-flash` |
+| **Anything OpenAI-compatible** (Ollama, OpenRouter, LM Studio, a company gateway) | `CALL_CUE_AI_BASE_URL=http://127.0.0.1:11434/v1` and `CALL_CUE_AI_MODEL=...` (`CALL_CUE_AI_KEY=...` if it needs one) | you choose |
 
-```bash
-export TYPESAFE_API_KEY=...                  # https://typesafe.ai
-export ANTHROPIC_API_KEY=...                 # https://console.anthropic.com
-npx github:lyhuuloi/call-cue                  # (from a clone: npm install && npm start)
-```
+✅ **It works when** the start-up line names your provider and the page button reads
+**✨ AI off** instead of **✨ AI: add a key**.
 
-Keys stay in the local server; the page never sees them. Even with keys set, AI stays
+- **Several keys set?** The first one in the table wins. To choose, add
+  `CALL_CUE_AI=claude` (or `openai`, `deepseek`, `opencode`, `custom`).
+- **Another model?** Add `CALL_CUE_AI_MODEL=...`. If the service answers "model not
+  found", this is the line to change.
+- **Local model, nothing leaves your machine:** point the last row at Ollama or LM Studio.
+- *Optional:* `TYPESAFE_API_KEY` lets [Jev](https://docs.typesafe.ai), a fast model made
+  for this kind of choice, pick the card; your chat model still drafts and summarises.
+  Tune with `CALL_CUE_MATCH_THRESHOLD` (default `0.5`).
+
+Keys stay in the local server; the page never sees them. Even with a key set, AI stays
 **off until you press ✨ AI** in the page. While it is on:
 
 - only **text** of finished sentences is sent (never audio), and a **● sending** marker
   shows each request;
 - the summary asks for confirmation before sending the transcript.
 
-Tune with `CALL_CUE_MATCH_THRESHOLD` (default `0.5`), `CALL_CUE_JEV_MODEL`
-(default `jev-latest`) and `CALL_CUE_CLAUDE_MODEL` (default `claude-opus-5-5`).
+⚠️ `.env` holds a secret. Keep it out of git and shared folders.
 
 ## Knowledge base format
 
@@ -146,19 +194,32 @@ replaces the keyword pick unless you have pinned a card.
 ```bash
 npm test            # node --test, no network
 node server.mjs --demo
+npm run build:web    # the static web demo, into dist/
 ```
+
+Changes per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Tiếng Việt (tóm tắt)
 
 **call-cue** nghe cuộc gọi (tab trình duyệt, mic, hoặc Windows Live Captions) và **tự hiện
 thẻ trả lời** khi đối phương hỏi đúng chủ đề trong knowledge base của bạn.
 
+**Cần có:** Node.js 20 trở lên · Google Chrome bản mới trên máy tính (139 trở lên) ·
+cuộc gọi mở trong tab Chrome, hoặc mic + loa ngoài · đối phương nói tiếng Anh · một file
+JSON chứa câu trả lời của bạn. Key AI là **tuỳ chọn**.
+
+```bash
+npx github:lyhuuloi/call-cue --demo   # 1. xem thử, không cần key
+npx github:lyhuuloi/call-cue init     # 2. tạo call-cue-kb.json và .env
+npx github:lyhuuloi/call-cue          # 3. chạy thật
+```
+
 - Nhận dạng giọng nói và dịch chạy **trên máy**. Không có key AI thì không gửi gì ra ngoài.
-- Knowledge base là **một file JSON** (xem `kb/example.json`).
-- AI là **tuỳ chọn** và phải bấm **✨ AI** mới bật: Jev chọn thẻ, Claude viết nháp khi
-  không có thẻ phù hợp và tóm tắt sau cuộc gọi.
+- **AI nào cũng được:** thêm một dòng vào `.env`: `ANTHROPIC_API_KEY` (Claude),
+  `OPENAI_API_KEY` (ChatGPT), `DEEPSEEK_API_KEY` (DeepSeek), `OPENCODE_API_KEY` (OpenCode),
+  hoặc `CALL_CUE_AI_BASE_URL` + `CALL_CUE_AI_MODEL` cho Ollama, OpenRouter…
+- AI chỉ chạy khi bạn bấm **✨ AI** trên trang, và chỉ gửi chữ, không gửi âm thanh.
 - Xem thử ngay trên trình duyệt, không cần cài: https://lyhuuloi.github.io/call-cue/
-- Chạy trên máy, một lệnh: `npx github:lyhuuloi/call-cue --demo`.
 
 ## License
 

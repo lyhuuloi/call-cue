@@ -3,13 +3,16 @@
 // configure keys) runs the AI helpers. Listens on 127.0.0.1 only. API keys stay here,
 // never in the page.
 //
-//   node server.mjs [--kb kb/example.json] [--port 8765] [--demo] [--mock-ai] [--open] [--open-demo]
+//   call-cue [init] [--kb my-kb.json] [--port 8765] [--demo] [--mock-ai] [--open] [--no-open]
 //
-// Environment:
-//   TYPESAFE_API_KEY   enables AI card matching with Jev (https://docs.typesafe.ai)
-//   ANTHROPIC_API_KEY  enables AI drafts and post-call summaries with Claude
-//   CALL_CUE_JEV_MODEL     default jev-latest
-//   CALL_CUE_CLAUDE_MODEL  default claude-opus-5-5
+// AI is optional. One key switches it on; keys can live in a .env file in the folder
+// you start call-cue from:
+//   ANTHROPIC_API_KEY  Claude            OPENAI_API_KEY    ChatGPT (OpenAI)
+//   DEEPSEEK_API_KEY   DeepSeek          OPENCODE_API_KEY  OpenCode
+//   CALL_CUE_AI_BASE_URL + CALL_CUE_AI_MODEL (+ CALL_CUE_AI_KEY)  any OpenAI-compatible endpoint
+//   CALL_CUE_AI        pick one when several keys are set (claude|openai|deepseek|opencode|custom)
+//   CALL_CUE_AI_MODEL  override the model
+//   TYPESAFE_API_KEY   optional: Jev picks the card instead (https://docs.typesafe.ai)
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,19 +22,63 @@ import { spawn } from "node:child_process";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export function parseArgs(argv) {
-  const o = { kb: path.join(HERE, "kb", "example.json"), port: 8765, mockAi: false, open: false, openDemo: false };
+  const o = { kb: null, port: 8765, mockAi: false, open: false, openDemo: false, init: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--kb") o.kb = path.resolve(argv[++i]);
     else if (a === "--port") o.port = Number(argv[++i]);
     else if (a === "--mock-ai") o.mockAi = true;
+    else if (a === "init" && i === 0) o.init = true;
     else if (a === "--open") o.open = true;
+    else if (a === "--no-open") o.noOpen = true;
     else if (a === "--open-demo") { o.open = true; o.openDemo = true; }
     else if (a === "--demo") { o.mockAi = true; o.open = true; o.openDemo = true; }
     else if (a === "-h" || a === "--help") o.help = true;
     else throw new Error("Unknown option: " + a);
   }
   return o;
+}
+
+// Your own knowledge base in the current folder wins over the bundled example.
+export const LOCAL_KB = "call-cue-kb.json";
+export const EXAMPLE_KB = path.join(HERE, "kb", "example.json");
+export function resolveKb(opts, cwd = process.cwd()) {
+  if (opts.kb) return opts.kb;
+  const mine = path.join(cwd, LOCAL_KB);
+  return fs.existsSync(mine) ? mine : EXAMPLE_KB;
+}
+
+// KEY=value lines from a .env file; variables already set in the environment win.
+export function loadEnvFile(file, env = process.env) {
+  let text; try { text = fs.readFileSync(file, "utf8"); } catch { return 0; }
+  let n = 0;
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!m || line.trim().startsWith("#")) continue;
+    const v = m[2].replace(/^(["'])(.*)\1$/, "$2");
+    if (v && env[m[1]] === undefined) { env[m[1]] = v; n++; }
+  }
+  return n;
+}
+
+const ENV_TEMPLATE = `# call-cue: AI is optional. Remove the # in front of ONE line and paste your key.
+# Keys stay on this machine; keep this file out of git.
+#ANTHROPIC_API_KEY=
+#OPENAI_API_KEY=
+#DEEPSEEK_API_KEY=
+#OPENCODE_API_KEY=
+
+# Any other OpenAI-compatible endpoint (Ollama, OpenRouter, LM Studio, ...):
+#CALL_CUE_AI_BASE_URL=http://127.0.0.1:11434/v1
+#CALL_CUE_AI_MODEL=
+#CALL_CUE_AI_KEY=
+`;
+export function init(cwd = process.cwd()) {
+  const made = [];
+  const kb = path.join(cwd, LOCAL_KB), env = path.join(cwd, ".env");
+  if (!fs.existsSync(kb)) { fs.copyFileSync(EXAMPLE_KB, kb); made.push(LOCAL_KB); }
+  if (!fs.existsSync(env)) { fs.writeFileSync(env, ENV_TEMPLATE, { mode: 0o600 }); made.push(".env"); }
+  return made;
 }
 
 // ---------- knowledge base ----------
@@ -116,7 +163,34 @@ export function mockMatch(kb, latest) {
   return { id: bestScore >= 1 && confidence >= 0.5 ? best : null, best, confidence, covered: bestScore ? 0.8 : 0.1, probabilities: {}, model: "mock" };
 }
 
-// ---------- AI: Claude drafts and summarises ----------
+// ---------- AI: one chat model drafts, summarises and (without Jev) picks the card ----------
+export const PROVIDERS = {
+  claude: { label: "Claude", keyVar: "ANTHROPIC_API_KEY", model: "claude-opus-5-5" },
+  openai: { label: "ChatGPT", keyVar: "OPENAI_API_KEY", base: "https://api.openai.com/v1", model: "gpt-6-luna", tokens: "max_completion_tokens" },
+  deepseek: { label: "DeepSeek", keyVar: "DEEPSEEK_API_KEY", base: "https://api.deepseek.com", model: "deepseek-flash" },
+  opencode: { label: "OpenCode", keyVar: "OPENCODE_API_KEY", base: "https://opencode.ai/inference/openai/v1", model: "deepseek-v4.1-flash" },
+  custom: { label: "custom endpoint", keyVar: "CALL_CUE_AI_KEY" },
+};
+
+// Which chat model to use: CALL_CUE_AI if set, else the first provider that has a key.
+export function pickProvider(env = process.env) {
+  const want = (env.CALL_CUE_AI || "").trim().toLowerCase();
+  if (want && !PROVIDERS[want]) throw new Error(`CALL_CUE_AI="${want}" is not one of: ${Object.keys(PROVIDERS).join(", ")}`);
+  const make = (id) => {
+    const p = PROVIDERS[id];
+    const base = id === "custom" ? (env.CALL_CUE_AI_BASE_URL || "").replace(/\/+$/, "") : p.base;
+    const model = env.CALL_CUE_AI_MODEL || (id === "claude" && env.CALL_CUE_CLAUDE_MODEL) || p.model;
+    return { id, label: p.label, base, model, tokens: p.tokens || "max_tokens", apiKey: env[p.keyVar] || "" };
+  };
+  const ready = (id) => (id === "custom" ? !!(env.CALL_CUE_AI_BASE_URL && env.CALL_CUE_AI_MODEL) : !!env[PROVIDERS[id].keyVar]);
+  if (want) {
+    if (!ready(want)) throw new Error(want === "custom" ? "CALL_CUE_AI=custom needs CALL_CUE_AI_BASE_URL and CALL_CUE_AI_MODEL" : `CALL_CUE_AI=${want} needs ${PROVIDERS[want].keyVar}`);
+    return make(want);
+  }
+  const id = Object.keys(PROVIDERS).find(ready);
+  return id ? make(id) : null;
+}
+
 let anthropic = null;
 async function claude() {
   if (anthropic) return anthropic;
@@ -132,22 +206,64 @@ function kbForPrompt(kb) {
   return `# Knowledge base: ${kb.title || ""}\n\n${cards}\n\n# Background notes\n${kb.docs || "(none)"}\n\n# Never say\n${(kb.dontSay || []).join("\n")}`;
 }
 
-async function claudeText(kb, instruction, userText, maxTokens) {
+async function claudeText(p, instruction, context, userText, maxTokens) {
   const client = await claude();
   const msg = await client.beta.messages.create({
-    model: process.env.CALL_CUE_CLAUDE_MODEL || "claude-opus-5-5",
+    model: p.model,
     max_tokens: maxTokens,
     output_config: { effort: "low" },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     system: [
       { type: "text", text: instruction },
-      { type: "text", text: kbForPrompt(kb), cache_control: { type: "ephemeral" } },
+      { type: "text", text: context, cache_control: { type: "ephemeral" } },
     ],
     messages: [{ role: "user", content: userText }],
   });
   if (msg.stop_reason === "refusal") throw new Error("The model declined this request.");
   return msg.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+}
+
+// ChatGPT, DeepSeek, OpenCode and any other endpoint that speaks OpenAI chat completions.
+async function openaiText(p, instruction, context, userText, maxTokens) {
+  const headers = { "Content-Type": "application/json" };
+  if (p.apiKey) headers.Authorization = "Bearer " + p.apiKey;
+  const r = await fetch(p.base + "/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: p.model,
+      [p.tokens]: maxTokens,
+      messages: [{ role: "system", content: instruction + "\n\n" + context }, { role: "user", content: userText }],
+    }),
+    signal: AbortSignal.timeout(maxTokens > 2000 ? 90000 : 25000),
+  });
+  if (!r.ok) throw Object.assign(new Error(p.label + " " + r.status + ": " + (await r.text()).slice(0, 300)), { status: r.status });
+  const d = await r.json();
+  const text = d.choices?.[0]?.message?.content;
+  if (typeof text !== "string" || !text.trim()) throw new Error(p.label + " returned no text (model " + p.model + ")");
+  return text.trim();
+}
+
+export const chatText = (p, ...a) => (p.id === "claude" ? claudeText(p, ...a) : openaiText(p, ...a));
+
+const MATCH_INSTRUCTION = `You match one sentence heard on a live call to a prepared answer card.
+Reply with JSON only, nothing else: {"id":"<card id, or none>","confidence":<number from 0 to 1>}
+Use "none" for small talk, an acknowledgement, or anything that no card answers.`;
+
+export function parseLlmMatch(text, kb, threshold = 0.5) {
+  let o = null;
+  try { o = JSON.parse((/\{[\s\S]*\}/.exec(text) || [])[0]); } catch { /* not JSON */ }
+  const best = o && typeof o.id === "string" && kb.cards.some((c) => c.id === o.id) ? o.id : null;
+  const confidence = Math.max(0, Math.min(1, Number(o?.confidence) || 0));
+  const none = !!o && o.id === "none";
+  return { id: best && confidence >= threshold ? best : null, best, confidence, covered: best ? confidence : none ? 0.1 : null, probabilities: {} };
+}
+
+async function llmMatch(p, kb, latest, recent) {
+  const cards = "# Cards\n" + kb.cards.map((c) => `${c.id}: ${c.title}${c.keywords ? " (about: " + c.keywords + ")" : ""}`).join("\n");
+  const text = await chatText(p, MATCH_INSTRUCTION, cards, (recent ? "Earlier context: " + recent + "\n\n" : "") + "Latest sentence: " + latest, 300);
+  return { ...parseLlmMatch(text, kb, Number(process.env.CALL_CUE_MATCH_THRESHOLD || 0.5)), model: p.model };
 }
 
 const DRAFT_INSTRUCTION = `You help a person answer questions live on a call. They will read your words aloud.
@@ -179,12 +295,19 @@ function readJson(req, limit = 200_000) {
 }
 
 export function createServer(opts) {
-  const kb = loadKb(opts.kb);
+  const kbFile = resolveKb(opts);
+  const kb = loadKb(kbFile);
+  const chat = opts.mockAi ? null : pickProvider();
+  const jev = !opts.mockAi && !!process.env.TYPESAFE_API_KEY;
   const ai = {
-    match: opts.mockAi || !!process.env.TYPESAFE_API_KEY,
-    draft: opts.mockAi || !!process.env.ANTHROPIC_API_KEY,
+    match: opts.mockAi || jev || !!chat,
+    draft: opts.mockAi || !!chat,
     mock: !!opts.mockAi,
+    matchBy: opts.mockAi ? "mock" : jev ? "Jev" : chat ? chat.label : "",
+    draftBy: opts.mockAi ? "mock" : chat ? chat.label : "",
+    model: chat ? chat.model : "",
   };
+  const NO_KEY = "AI is off: add one key (ANTHROPIC_API_KEY, OPENAI_API_KEY, DEEPSEEK_API_KEY or OPENCODE_API_KEY) and restart";
   const pub = path.join(HERE, "public");
 
   const server = http.createServer(async (req, res) => {
@@ -200,27 +323,27 @@ export function createServer(opts) {
     try {
       if (req.method === "GET" && url.pathname === "/api/kb") return send(res, 200, { ...kb, ai });
       if (req.method === "POST" && url.pathname === "/api/match") {
-        if (!ai.match) return send(res, 409, { error: "AI matching is off: set TYPESAFE_API_KEY" });
+        if (!ai.match) return send(res, 409, { error: NO_KEY });
         const b = await readJson(req);
         const latest = String(b.latest || "").slice(0, 600), recent = String(b.recent || "").slice(0, 2000);
         if (!latest.trim()) return send(res, 400, { error: "latest is empty" });
-        return send(res, 200, ai.mock ? mockMatch(kb, latest) : await jevMatch(kb, latest, recent));
+        return send(res, 200, ai.mock ? mockMatch(kb, latest) : jev ? await jevMatch(kb, latest, recent) : await llmMatch(chat, kb, latest, recent));
       }
       if (req.method === "POST" && url.pathname === "/api/draft") {
-        if (!ai.draft) return send(res, 409, { error: "AI drafts are off: set ANTHROPIC_API_KEY" });
+        if (!ai.draft) return send(res, 409, { error: NO_KEY });
         const b = await readJson(req);
         const q = String(b.question || "").slice(0, 1000);
         if (!q.trim()) return send(res, 400, { error: "question is empty" });
         if (ai.mock) return send(res, 200, { text: "(mock draft) " + (kb.fallback || "Let me check that and confirm in writing.") });
-        return send(res, 200, { text: await claudeText(kb, DRAFT_INSTRUCTION, "Question just asked on the call:\n" + q + (b.recent ? "\n\nEarlier context:\n" + String(b.recent).slice(0, 2000) : ""), 1024) });
+        return send(res, 200, { text: await chatText(chat, DRAFT_INSTRUCTION, kbForPrompt(kb), "Question just asked on the call:\n" + q + (b.recent ? "\n\nEarlier context:\n" + String(b.recent).slice(0, 2000) : ""), 1024) });
       }
       if (req.method === "POST" && url.pathname === "/api/summary") {
-        if (!ai.draft) return send(res, 409, { error: "AI summaries are off: set ANTHROPIC_API_KEY" });
+        if (!ai.draft) return send(res, 409, { error: NO_KEY });
         const b = await readJson(req, 2_000_000);
         const t = String(b.transcript || "").slice(-400_000);
         if (!t.trim()) return send(res, 400, { error: "transcript is empty" });
         if (ai.mock) return send(res, 200, { text: "(mock summary)\nAsked: " + t.split("\n").filter(Boolean).length + " lines\nAnswered: -\nFollow-ups: -" });
-        return send(res, 200, { text: await claudeText(kb, SUMMARY_INSTRUCTION, "Transcript:\n" + t, 4000) });
+        return send(res, 200, { text: await chatText(chat, SUMMARY_INSTRUCTION, kbForPrompt(kb), "Transcript:\n" + t, 4000) });
       }
       if (req.method === "GET") {
         const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname).replace(/^\/+/, "");
@@ -235,11 +358,12 @@ export function createServer(opts) {
       return send(res, code, { error: friendly(e) });
     }
   });
-  return { server, kb, ai };
+  return { server, kb, ai, kbFile };
 }
 
 export function friendly(e) {
   const s = e.status ?? Number((/^(?:TypeSafe )?(\d{3})\b/.exec(e.message) || [])[1]);
+  if (s === 404) return "the AI service did not find that model or address; check CALL_CUE_AI_MODEL";
   if (s === 401 || s === 403) return "the AI service rejected the API key; check it and restart the server";
   if (s === 429) return "the AI service is rate limiting; try again shortly";
   if (e.name === "TimeoutError" || e.name === "AbortError") return "the AI service timed out";
@@ -254,13 +378,32 @@ function openBrowser(u) {
 // Resolve symlinks: npx and global installs start us through node_modules/.bin/call-cue.
 const isMain = () => { try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
 if (process.argv[1] && isMain()) {
-  const opts = parseArgs(process.argv.slice(2));
+  let opts;
+  try { opts = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message + "\nTry: call-cue --help"); process.exit(2); }
   if (opts.help) {
-    console.log("Usage: node server.mjs [--kb file.json] [--port 8765] [--demo] [--mock-ai] [--open] [--open-demo]");
+    console.log(`call-cue: live answer cards for calls
+
+  call-cue --demo            play a sample call (no keys, no microphone)
+  call-cue init              create ${LOCAL_KB} and .env in this folder
+  call-cue                   start; uses ./${LOCAL_KB} when it exists
+  call-cue --kb file.json    start with another knowledge base
+
+Options: --port 8765   --no-open   --mock-ai
+AI (optional): put ONE key in .env: ANTHROPIC_API_KEY, OPENAI_API_KEY,
+DEEPSEEK_API_KEY or OPENCODE_API_KEY. See the README for other endpoints.`);
+    process.exit(0);
+  }
+  if (opts.init) {
+    const made = init();
+    console.log(made.length ? "Created: " + made.join(", ") : `${LOCAL_KB} and .env already exist; nothing changed.`);
+    console.log(`Next: edit ${LOCAL_KB} with your own answers, then run: call-cue`);
     process.exit(0);
   }
   if (!Number.isInteger(opts.port) || opts.port < 1 || opts.port > 65535) { console.error("--port needs a number from 1 to 65535"); process.exit(2); }
-  const { server, kb, ai } = createServer(opts);
+  loadEnvFile(path.join(process.cwd(), ".env"));
+  let made;
+  try { made = createServer(opts); } catch (e) { console.error("call-cue could not start: " + e.message); process.exit(2); }
+  const { server, kb, ai, kbFile } = made;
   server.on("error", (e) => {
     console.error(e.code === "EADDRINUSE" ? `Port ${opts.port} is busy (is call-cue already running?). Try --port ${opts.port + 10}.` : String(e));
     process.exit(1);
@@ -268,9 +411,10 @@ if (process.argv[1] && isMain()) {
   server.listen(opts.port, "127.0.0.1", () => {
     const u = `http://127.0.0.1:${opts.port}/` + (opts.openDemo ? "?demo" : "");
     console.log(`call-cue: ${u}`);
-    console.log(`  knowledge base: ${opts.kb} (${kb.cards.length} cards)`);
-    console.log(`  AI matching (Jev): ${ai.match ? (ai.mock ? "mock" : "available, off until you switch it on in the page") : "off (no TYPESAFE_API_KEY)"}`);
-    console.log(`  AI drafts (Claude): ${ai.draft ? (ai.mock ? "mock" : "available, off until you switch it on in the page") : "off (no ANTHROPIC_API_KEY)"}`);
-    if (opts.open) openBrowser(u);
+    console.log(`  knowledge base: ${kbFile} (${kb.cards.length} cards)${kbFile === EXAMPLE_KB ? "  <- the example; run \"call-cue init\" for your own" : ""}`);
+    console.log(ai.mock ? "  AI: mock (nothing leaves this machine)"
+      : ai.draft || ai.match ? `  AI: ${[...new Set([ai.matchBy, ai.draftBy].filter(Boolean))].join(" + ")}${ai.model ? " (" + ai.model + ")" : ""}, off until you press AI in the page`
+      : "  AI: off (optional; add one key to .env, see --help)");
+    if (!opts.noOpen) openBrowser(u);
   });
 }
